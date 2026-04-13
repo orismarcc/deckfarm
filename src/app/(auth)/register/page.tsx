@@ -66,12 +66,12 @@ export default function RegisterPage() {
   ]
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row' }}>
 
       {/* ── LEFT: Hero ─── */}
       <div
-        className="grain relative overflow-hidden flex flex-col justify-between lg:w-[42%] flex-shrink-0
-                   p-8 lg:p-12 min-h-[200px] lg:min-h-screen"
+        className="grain relative overflow-hidden"
+        style={{ width: '42%', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '3rem', minHeight: '100vh' }}
         style={{
           background: 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)',
         }}
@@ -93,7 +93,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="relative z-10 hidden lg:block">
+        <div className="relative z-10">
           <h1 className="font-display text-[2.75rem] font-bold leading-[1.1] text-white mb-5">
             Comece agora<br />gratuitamente.
           </h1>
@@ -102,7 +102,7 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <div className="relative z-10 hidden lg:flex flex-col gap-3.5">
+        <div className="relative z-10 flex flex-col gap-3.5">
           {[
             'Cadastro rápido, sem cartão',
             'Dados salvos localmente (offline)',
@@ -117,7 +117,7 @@ export default function RegisterPage() {
       </div>
 
       {/* ── RIGHT: Form ─── */}
-      <div className="flex-1 flex items-center justify-center bg-white p-6 lg:p-12">
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', padding: '3rem' }}>
         <div className="w-full max-w-[380px]">
 
           <div className="mb-8">
