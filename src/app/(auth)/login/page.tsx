@@ -66,8 +66,9 @@ export default function LoginPage() {
       {/* ── LEFT: Hero ───────────────────────────────────────────── */}
       <div
         className="grain relative overflow-hidden"
-        style={{ width: '42%', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '3rem', minHeight: '100vh' }}
         style={{
+          width: '42%', flexShrink: 0, display: 'flex', flexDirection: 'column',
+          justifyContent: 'space-between', padding: '3rem', minHeight: '100vh',
           background: 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)',
         }}
       >
