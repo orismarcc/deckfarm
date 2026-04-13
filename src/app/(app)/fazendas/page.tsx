@@ -6,7 +6,7 @@ import { getDB } from '@/lib/db'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn, gerarId } from '@/lib/utils'
+import { gerarId } from '@/lib/utils'
 import type { Fazenda } from '@/types'
 import { Plus, MapPin, Leaf, TrendingUp, Trash2, Edit3, ChevronRight, Search } from 'lucide-react'
 import Link from 'next/link'
@@ -82,12 +82,17 @@ export default function FazendasPage() {
   )
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-7xl mx-auto animate-slide-in">
+    <div className="px-4 py-6 md:px-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="animate-enter animate-enter-1 flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fazendas</h1>
-          <p className="text-gray-500 text-sm">{fazendas.length} fazenda{fazendas.length !== 1 ? 's' : ''} cadastrada{fazendas.length !== 1 ? 's' : ''}</p>
+          <p className="section-label mb-1">Propriedades</p>
+          <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
+            Fazendas
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
+            {fazendas.length} fazenda{fazendas.length !== 1 ? 's' : ''} cadastrada{fazendas.length !== 1 ? 's' : ''}
+          </p>
         </div>
         <Button onClick={() => openModal()} className="gap-2">
           <Plus className="w-4 h-4" /> Nova Fazenda
@@ -95,65 +100,143 @@ export default function FazendasPage() {
       </div>
 
       {/* Search */}
-      {fazendas.length > 3 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+      {fazendas.length > 2 && (
+        <div className="animate-enter animate-enter-2 relative mb-6">
+          <Search
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4"
+            style={{ color: 'var(--fg-subtle)' }}
+          />
           <input
             value={busca}
             onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar fazenda..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Buscar por nome ou localização..."
+            style={{
+              width: '100%',
+              maxWidth: '360px',
+              paddingLeft: '2.5rem',
+              paddingRight: '1rem',
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--borda)',
+              background: 'var(--bg-card)',
+              color: 'var(--fg)',
+              fontSize: '0.875rem',
+              outline: 'none',
+            }}
           />
         </div>
       )}
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">Nenhuma fazenda encontrada</p>
-          <p className="text-sm mt-1">Clique em "Nova Fazenda" para começar</p>
+        <div
+          className="animate-enter animate-enter-2 card p-16 text-center"
+        >
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'var(--bg-dark)' }}
+          >
+            <MapPin className="w-8 h-8" style={{ color: 'var(--fg-subtle)' }} />
+          </div>
+          <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nenhuma fazenda encontrada</p>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            {busca ? 'Tente outro termo.' : 'Clique em "Nova Fazenda" para começar.'}
+          </p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(f => {
+          {filtered.map((f, i) => {
             const talhoesF = talhoes.filter(t => t.fazenda_id === f.id)
             const appsF = aplicacoes.filter(a => talhoesF.some(t => t.id === a.talhao_id))
             const atrasadas = appsF.filter(a => a.status === 'atrasado').length
             return (
-              <div key={f.id} className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow">
+              <div
+                key={f.id}
+                className="card animate-enter"
+                style={{ animationDelay: `${(i + 2) * 70}ms` }}
+              >
                 <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-green-600" />
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'var(--verde-50)' }}
+                      >
+                        <MapPin className="w-5 h-5" style={{ color: 'var(--verde-500)' }} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{f.nome}</h3>
-                        <p className="text-xs text-gray-500">{f.localizacao}</p>
+                        <h3 className="font-semibold" style={{ color: 'var(--fg)' }}>{f.nome}</h3>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>{f.localizacao}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => openModal(f)} className="p-1.5 rounded-lg hover:bg-gray-100 transition"><Edit3 className="w-4 h-4 text-gray-400" /></button>
-                      <button onClick={() => handleDelete(f)} className="p-1.5 rounded-lg hover:bg-red-50 transition"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                    <div className="flex gap-0.5">
+                      <button
+                        onClick={() => openModal(f)}
+                        className="p-1.5 rounded-lg transition"
+                        style={{ color: 'var(--fg-subtle)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(f)}
+                        className="p-1.5 rounded-lg transition"
+                        style={{ color: 'var(--fg-subtle)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'hsl(0 86% 95%)'; e.currentTarget.style.color = 'hsl(0 72% 51%)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="text-lg font-bold text-gray-900">{talhoesF.length}</div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1"><Leaf className="w-3 h-3" />Talhões</div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div
+                      className="rounded-xl px-3 py-2.5"
+                      style={{ background: 'var(--bg)' }}
+                    >
+                      <div className="text-xl font-bold" style={{ color: 'var(--fg)' }}>{talhoesF.length}</div>
+                      <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                        <Leaf className="w-3 h-3" />Talhões
+                      </div>
                     </div>
-                    <div className={cn('rounded-lg px-3 py-2', atrasadas > 0 ? 'bg-red-50' : 'bg-gray-50')}>
-                      <div className={cn('text-lg font-bold', atrasadas > 0 ? 'text-red-600' : 'text-gray-900')}>{atrasadas}</div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1"><TrendingUp className="w-3 h-3" />Atrasadas</div>
+                    <div
+                      className="rounded-xl px-3 py-2.5"
+                      style={{
+                        background: atrasadas > 0 ? 'hsl(0 86% 97%)' : 'var(--bg)',
+                      }}
+                    >
+                      <div
+                        className="text-xl font-bold"
+                        style={{ color: atrasadas > 0 ? 'hsl(0 72% 45%)' : 'var(--fg)' }}
+                      >
+                        {atrasadas}
+                      </div>
+                      <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                        <TrendingUp className="w-3 h-3" />Atrasadas
+                      </div>
                     </div>
                   </div>
 
-                  {f.area_total && <p className="text-xs text-gray-400 mb-3">{f.area_total} hectares</p>}
+                  {f.area_total && (
+                    <p className="text-xs mb-1" style={{ color: 'var(--fg-subtle)' }}>
+                      {f.area_total.toLocaleString('pt-BR')} hectares
+                    </p>
+                  )}
                 </div>
 
-                <Link href={`/fazendas/${f.id}`} className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-sm text-green-600 font-medium hover:bg-green-50 transition rounded-b-xl">
+                <Link
+                  href={`/fazendas/${f.id}`}
+                  className="flex items-center justify-between px-5 py-3 rounded-b-[calc(var(--radius-lg)-1px)] text-sm font-medium transition"
+                  style={{
+                    borderTop: '1px solid var(--borda)',
+                    color: 'var(--primary)',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--verde-50)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
                   Ver talhões e produtos <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>

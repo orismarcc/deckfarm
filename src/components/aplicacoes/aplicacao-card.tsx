@@ -1,62 +1,105 @@
-import { cn, formatDate, culturaLabel, culturaIcon, produtoTipoLabel, diasParaProxima } from '@/lib/utils'
+import { cn, formatDate, culturaLabel, culturaIcon, produtoTipoLabel, diasParaProxima, produtoTipoColor } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { Aplicacao } from '@/types'
-import { Calendar, Leaf, Package } from 'lucide-react'
+import { Calendar, Droplets } from 'lucide-react'
 
 interface AplicacaoCardProps {
   aplicacao: Aplicacao
   showTalhao?: boolean
 }
 
+const accentColor: Record<string, string> = {
+  atrasado:       '#ef4444',
+  hoje:           '#3b82f6',
+  proximo:        '#f59e0b',
+  dentro_do_prazo:'#22c55e',
+}
+
 export function AplicacaoCard({ aplicacao, showTalhao = true }: AplicacaoCardProps) {
   const dias = diasParaProxima(aplicacao.proxima_aplicacao)
+  const accent = accentColor[aplicacao.status] || '#22c55e'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          {showTalhao && aplicacao.talhao && (
-            <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-1">
-              <Leaf className="w-3.5 h-3.5" />
-              <span>{aplicacao.talhao.nome}</span>
-              <span className="text-gray-300">·</span>
-              <span>{culturaIcon((aplicacao.talhao as any).cultura)} {culturaLabel((aplicacao.talhao as any).cultura)}</span>
+    <div
+      className="bg-[--bg-card] rounded-2xl border border-[--borda] overflow-hidden transition-all duration-200 hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5"
+      style={{ borderLeftColor: accent, borderLeftWidth: 3 }}
+    >
+      <div className="px-4 pt-3.5 pb-3">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <div className="flex-1 min-w-0">
+            {showTalhao && aplicacao.talhao && (
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-sm">{culturaIcon((aplicacao.talhao as any).cultura)}</span>
+                <span className="text-xs font-semibold text-[--fg-muted] truncate">
+                  {aplicacao.talhao.nome}
+                </span>
+                <span className="text-[--borda]">·</span>
+                <span className="text-xs text-[--fg-subtle] truncate">
+                  {culturaLabel((aplicacao.talhao as any).cultura)}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${accent}18` }}
+              >
+                <Droplets className="w-3.5 h-3.5" style={{ color: accent }} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-[--fg] leading-tight">
+                  {aplicacao.produto?.nome || 'Produto'}
+                </div>
+                {aplicacao.produto && (
+                  <div className="text-[11px] text-[--fg-subtle]">
+                    {produtoTipoLabel(aplicacao.produto.tipo as any)}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-            <Package className="w-3.5 h-3.5 text-gray-400" />
-            {aplicacao.produto?.nome || 'Produto'}
           </div>
-          {aplicacao.produto && (
-            <span className="text-xs text-gray-500">{produtoTipoLabel(aplicacao.produto.tipo as any)}</span>
-          )}
+          <StatusBadge status={aplicacao.status} />
         </div>
-        <StatusBadge status={aplicacao.status} />
-      </div>
 
-      <div className="grid grid-cols-2 gap-3 text-xs text-gray-600">
-        <div className="flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-gray-400" />
-          <div>
-            <div className="text-gray-400">Aplicado</div>
-            <div className="font-medium text-gray-700">{formatDate(aplicacao.data_aplicacao)}</div>
+        {/* Dates */}
+        <div className="flex items-center gap-4 pt-2.5 border-t border-[--borda]">
+          <div className="flex items-center gap-1.5 text-xs text-[--fg-subtle]">
+            <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>
+              Aplicado{' '}
+              <span className="font-medium text-[--fg-muted]">
+                {formatDate(aplicacao.data_aplicacao)}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-[--fg-subtle]">
+            <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>
+              Próxima{' '}
+              <span className={cn(
+                'font-medium',
+                aplicacao.status === 'atrasado' ? 'text-red-600'
+                : aplicacao.status === 'hoje'   ? 'text-blue-600'
+                :                                  'text-[--fg-muted]'
+              )}>
+                {formatDate(aplicacao.proxima_aplicacao)}
+              </span>
+              {' '}
+              <span className="text-[--fg-subtle]">
+                ({dias === 0 ? 'hoje' : dias > 0 ? `em ${dias}d` : `${Math.abs(dias)}d atrás`})
+              </span>
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-gray-400" />
-          <div>
-            <div className="text-gray-400">Próxima</div>
-            <div className={cn('font-medium', aplicacao.status === 'atrasado' ? 'text-red-600' : aplicacao.status === 'hoje' ? 'text-blue-600' : 'text-gray-700')}>
-              {formatDate(aplicacao.proxima_aplicacao)}
-              {dias !== 0 && <span className="ml-1 text-gray-400">({dias > 0 ? `em ${dias}d` : `${Math.abs(dias)}d atrás`})</span>}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {aplicacao.observacoes && (
-        <p className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 line-clamp-2">{aplicacao.observacoes}</p>
-      )}
+        {/* Observações */}
+        {aplicacao.observacoes && (
+          <p className="mt-2 text-xs text-[--fg-subtle] bg-[--bg] rounded-lg px-2.5 py-1.5 line-clamp-1 border border-[--borda]">
+            {aplicacao.observacoes}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

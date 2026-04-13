@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
-import { cn, culturaLabel, culturaIcon } from '@/lib/utils'
+import { culturaLabel, culturaIcon } from '@/lib/utils'
 import type { Talhao, Fazenda, Produto, Aplicacao } from '@/types'
 import { ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar } from 'lucide-react'
 import Link from 'next/link'
@@ -87,21 +87,34 @@ export default function TalhaoPage() {
   const proximas = aplicacoes.filter(a => a.status === 'proximo' || a.status === 'hoje')
   const atrasadas = aplicacoes.filter(a => a.status === 'atrasado')
 
-  if (!talhao) return <div className="p-8 text-center text-gray-400">Talhão não encontrado</div>
+  if (!talhao) return (
+    <div className="flex items-center justify-center h-64" style={{ color: 'var(--fg-subtle)' }}>
+      Talhão não encontrado
+    </div>
+  )
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto animate-slide-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="animate-enter animate-enter-1 flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Link href={`/fazendas/${talhao.fazenda_id}`} className="p-2 rounded-lg hover:bg-gray-100 transition">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <Link
+            href={`/fazendas/${talhao.fazenda_id}`}
+            className="p-2 rounded-xl transition flex-shrink-0"
+            style={{ border: '1px solid var(--borda)', color: 'var(--fg-muted)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">{culturaIcon(talhao.cultura)}</span>
-              <h1 className="text-xl font-bold text-gray-900">{talhao.nome}</h1>
+              <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--fg)' }}>
+                {talhao.nome}
+              </h1>
             </div>
-            <p className="text-sm text-gray-500 ml-8">
+            <p className="text-sm ml-8" style={{ color: 'var(--fg-muted)' }}>
               {fazenda?.nome} · {culturaLabel(talhao.cultura)} · {talhao.area} ha
             </p>
           </div>
@@ -113,61 +126,108 @@ export default function TalhaoPage() {
         )}
       </div>
 
+      {/* Alert cards */}
       {(atrasadas.length > 0 || proximas.length > 0) && (
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="animate-enter animate-enter-2 grid grid-cols-2 gap-3 mb-6">
           {atrasadas.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+            <div
+              className="rounded-2xl p-4 flex items-center gap-3"
+              style={{ background: 'hsl(0 86% 97%)', border: '1px solid hsl(0 86% 90%)' }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'hsl(0 86% 93%)' }}
+              >
+                <AlertTriangle className="w-5 h-5" style={{ color: 'hsl(0 72% 51%)' }} />
+              </div>
               <div>
-                <div className="text-xl font-bold text-red-700">{atrasadas.length}</div>
-                <div className="text-xs text-red-600">atrasada{atrasadas.length !== 1 ? 's' : ''}</div>
+                <div className="text-xl font-bold" style={{ color: 'hsl(0 72% 40%)' }}>{atrasadas.length}</div>
+                <div className="text-xs" style={{ color: 'hsl(0 72% 55%)' }}>atrasada{atrasadas.length !== 1 ? 's' : ''}</div>
               </div>
             </div>
           )}
           {proximas.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+            <div
+              className="rounded-2xl p-4 flex items-center gap-3"
+              style={{ background: 'hsl(45 100% 96%)', border: '1px solid hsl(45 100% 88%)' }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'hsl(45 100% 90%)' }}
+              >
+                <Calendar className="w-5 h-5" style={{ color: 'hsl(32 95% 44%)' }} />
+              </div>
               <div>
-                <div className="text-xl font-bold text-yellow-700">{proximas.length}</div>
-                <div className="text-xs text-yellow-600">próxima{proximas.length !== 1 ? 's' : ''}</div>
+                <div className="text-xl font-bold" style={{ color: 'hsl(32 95% 35%)' }}>{proximas.length}</div>
+                <div className="text-xs" style={{ color: 'hsl(32 95% 50%)' }}>próxima{proximas.length !== 1 ? 's' : ''}</div>
               </div>
             </div>
           )}
         </div>
       )}
 
+      {/* No products warning */}
       {produtos.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3 mb-6">
-          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+        <div
+          className="animate-enter animate-enter-2 flex items-start gap-3 p-4 rounded-2xl mb-6"
+          style={{ background: 'hsl(45 100% 96%)', border: '1px solid hsl(45 100% 88%)' }}
+        >
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'hsl(32 95% 44%)' }} />
           <div>
-            <p className="font-medium text-yellow-800">Nenhum produto cadastrado</p>
-            <p className="text-sm text-yellow-700">Cadastre produtos na fazenda antes de registrar aplicações.</p>
-            <Link href={`/fazendas/${talhao.fazenda_id}`} className="text-sm text-yellow-700 underline mt-1 inline-block">
-              Ir para Produtos →
-            </Link>
+            <p className="font-medium text-sm" style={{ color: 'hsl(32 95% 30%)' }}>Nenhum produto cadastrado</p>
+            <p className="text-sm mt-0.5" style={{ color: 'hsl(32 95% 45%)' }}>
+              Cadastre produtos na fazenda antes de registrar aplicações.{' '}
+              <Link
+                href={`/fazendas/${talhao.fazenda_id}`}
+                className="underline font-medium"
+              >
+                Ir para Produtos →
+              </Link>
+            </p>
           </div>
         </div>
       )}
 
-      <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Histórico de Aplicações</h2>
+      {/* History */}
+      <div className="animate-enter animate-enter-3">
+        <div className="flex items-center justify-between mb-4">
+          <p className="section-label">Histórico</p>
+        </div>
         {aplicacoes.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <FlaskConical className="w-10 h-10 mx-auto mb-2 opacity-30" />
-            <p>Nenhuma aplicação registrada</p>
+          <div className="card p-14 text-center">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'var(--bg-dark)' }}
+            >
+              <FlaskConical className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
+            </div>
+            <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nenhuma aplicação registrada</p>
             {produtos.length > 0 && (
-              <button onClick={() => setModalOpen(true)} className="mt-3 text-sm text-green-600 hover:underline">
+              <button
+                onClick={() => setModalOpen(true)}
+                className="mt-2 text-sm font-medium"
+                style={{ color: 'var(--primary)' }}
+              >
                 Registrar primeira aplicação →
               </button>
             )}
           </div>
         ) : (
           <div className="space-y-3">
-            {aplicacoes.map(a => <AplicacaoCard key={a.id} aplicacao={a} showTalhao={false} />)}
+            {aplicacoes.map((a, i) => (
+              <div
+                key={a.id}
+                className="animate-enter"
+                style={{ animationDelay: `${(i + 3) * 50}ms` }}
+              >
+                <AplicacaoCard aplicacao={a} showTalhao={false} />
+              </div>
+            ))}
           </div>
         )}
       </div>
 
+      {/* Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Registrar Aplicação" size="lg">
         <div className="space-y-4">
           <Select
@@ -189,20 +249,17 @@ export default function TalhaoPage() {
             const proxima = new Date(form.data_aplicacao)
             proxima.setDate(proxima.getDate() + prod.prazo_medio_aplicacao)
             return (
-              <div className="bg-blue-50 rounded-lg px-4 py-2.5 text-sm text-blue-700">
+              <div
+                className="px-4 py-3 rounded-xl text-sm"
+                style={{ background: 'hsl(210 100% 97%)', color: 'hsl(210 100% 35%)' }}
+              >
                 <span className="font-medium">Próxima aplicação calculada:</span>{' '}
                 {proxima.toLocaleDateString('pt-BR')} (+{prod.prazo_medio_aplicacao} dias)
               </div>
             )
           })()}
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Dose"
-              type="number"
-              value={form.dose}
-              onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
-              placeholder="Ex: 2.5"
-            />
+            <Input label="Dose" type="number" value={form.dose} onChange={e => setForm(f => ({ ...f, dose: e.target.value }))} placeholder="Ex: 2.5" />
             <Select
               label="Unidade"
               value={form.unidade_dose}
@@ -228,20 +285,14 @@ export default function TalhaoPage() {
               value={form.clima}
               onChange={e => setForm(f => ({ ...f, clima: e.target.value }))}
               options={[
-                { value: 'ensolarado', label: 'Ensolarado' },
-                { value: 'nublado', label: 'Nublado' },
-                { value: 'parcialmente_nublado', label: 'Parcialmente nublado' },
-                { value: 'vento', label: 'Com vento' },
+                { value: 'ensolarado', label: '☀️ Ensolarado' },
+                { value: 'nublado', label: '☁️ Nublado' },
+                { value: 'parcialmente_nublado', label: '⛅ Parcialmente nublado' },
+                { value: 'vento', label: '💨 Com vento' },
               ]}
               placeholder="Selecionar clima"
             />
-            <Input
-              label="Temperatura (°C)"
-              type="number"
-              value={form.temperatura}
-              onChange={e => setForm(f => ({ ...f, temperatura: e.target.value }))}
-              placeholder="Ex: 28"
-            />
+            <Input label="Temperatura (°C)" type="number" value={form.temperatura} onChange={e => setForm(f => ({ ...f, temperatura: e.target.value }))} placeholder="Ex: 28" />
           </div>
           <Textarea
             label="Observações"

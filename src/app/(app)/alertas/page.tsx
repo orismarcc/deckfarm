@@ -8,26 +8,12 @@ import type { Notificacao } from '@/types'
 import { Bell, BellOff, CheckCheck, AlertTriangle, Clock, Calendar, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-function NotifIcon({ tipo }: { tipo: Notificacao['tipo'] }) {
-  const map: Record<Notificacao['tipo'], React.ReactNode> = {
-    atrasado: <AlertTriangle className="w-5 h-5 text-red-500" />,
-    hoje: <Clock className="w-5 h-5 text-blue-500" />,
-    amanha: <Calendar className="w-5 h-5 text-yellow-500" />,
-    tres_dias: <Calendar className="w-5 h-5 text-yellow-400" />,
-    semana: <Info className="w-5 h-5 text-green-500" />,
-  }
-  return <>{map[tipo] || <Bell className="w-5 h-5 text-gray-400" />}</>
-}
-
-function notifBg(tipo: Notificacao['tipo']): string {
-  const map: Record<Notificacao['tipo'], string> = {
-    atrasado: 'bg-red-50',
-    hoje: 'bg-blue-50',
-    amanha: 'bg-yellow-50',
-    tres_dias: 'bg-yellow-50',
-    semana: 'bg-green-50',
-  }
-  return map[tipo] || 'bg-gray-50'
+const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; bg: string; color: string }> = {
+  atrasado: { icon: AlertTriangle, bg: 'hsl(0 86% 97%)', color: 'hsl(0 72% 51%)' },
+  hoje: { icon: Clock, bg: 'hsl(210 100% 97%)', color: 'hsl(210 100% 50%)' },
+  amanha: { icon: Calendar, bg: 'hsl(45 100% 96%)', color: 'hsl(32 95% 44%)' },
+  tres_dias: { icon: Calendar, bg: 'hsl(45 100% 96%)', color: 'hsl(32 95% 50%)' },
+  semana: { icon: Info, bg: 'var(--verde-50)', color: 'var(--verde-500)' },
 }
 
 export default function AlertasPage() {
@@ -70,72 +56,108 @@ export default function AlertasPage() {
   const filtered = notificacoes.filter(n => filtroLida === 'todas' || !n.lida)
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-2xl mx-auto animate-slide-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-4 py-6 md:px-8 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="animate-enter animate-enter-1 flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Alertas</h1>
-          <p className="text-gray-500 text-sm">{unread} não lido{unread !== 1 ? 's' : ''}</p>
+          <p className="section-label mb-1">Notificações</p>
+          <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
+            Alertas
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
+            {unread > 0 ? `${unread} não lido${unread !== 1 ? 's' : ''}` : 'Tudo em dia'}
+          </p>
         </div>
         {unread > 0 && (
-          <Button variant="ghost" size="sm" onClick={marcarTodasLidas} className="gap-1.5 text-gray-600">
-            <CheckCheck className="w-4 h-4" />Marcar todas lidas
+          <Button variant="ghost" size="sm" onClick={marcarTodasLidas} className="gap-1.5 mt-1">
+            <CheckCheck className="w-4 h-4" />
+            Marcar todas lidas
           </Button>
         )}
       </div>
 
       {/* Filter tabs */}
-      <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
+      <div
+        className="animate-enter animate-enter-2 flex mb-6 p-1 rounded-xl"
+        style={{ background: 'var(--bg-dark)' }}
+      >
         {(['nao_lidas', 'todas'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFiltroLida(f)}
-            className={cn(
-              'flex-1 py-2 rounded-lg text-sm font-medium transition',
-              filtroLida === f ? 'bg-white shadow text-gray-900' : 'text-gray-500'
-            )}
+            className="flex-1 py-2 rounded-lg text-sm font-medium transition"
+            style={{
+              background: filtroLida === f ? 'var(--bg-card)' : 'transparent',
+              color: filtroLida === f ? 'var(--fg)' : 'var(--fg-muted)',
+              boxShadow: filtroLida === f ? 'var(--shadow-xs)' : 'none',
+            }}
           >
-            {f === 'nao_lidas' ? `Não lidas (${unread})` : 'Todas'}
+            {f === 'nao_lidas' ? `Não lidas${unread > 0 ? ` (${unread})` : ''}` : 'Todas'}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando...</div>
+        <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <BellOff className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">
+        <div className="card animate-enter animate-enter-3 p-14 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'var(--bg-dark)' }}
+          >
+            <BellOff className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
+          </div>
+          <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>
             {filtroLida === 'nao_lidas' ? 'Nenhum alerta não lido' : 'Nenhum alerta'}
           </p>
-          <p className="text-sm mt-1">Você está em dia com todas as aplicações!</p>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            Você está em dia com todas as aplicações!
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(n => (
-            <div
-              key={n.id}
-              onClick={() => !n.lida && marcarLida(n.id)}
-              className={cn(
-                'bg-white rounded-xl border p-4 flex items-start gap-3 transition-all',
-                n.lida
-                  ? 'border-gray-100 opacity-60'
-                  : 'border-gray-200 hover:border-green-200 hover:shadow-sm cursor-pointer'
-              )}
-            >
-              <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0', notifBg(n.tipo))}>
-                <NotifIcon tipo={n.tipo} />
+          {filtered.map((n, i) => {
+            const cfg = notifConfig[n.tipo] || { icon: Bell, bg: 'var(--bg-dark)', color: 'var(--fg-muted)' }
+            const Icon = cfg.icon
+            return (
+              <div
+                key={n.id}
+                onClick={() => !n.lida && marcarLida(n.id)}
+                className={cn('card flex items-start gap-3 p-4 animate-enter', !n.lida && 'cursor-pointer')}
+                style={{
+                  opacity: n.lida ? 0.55 : 1,
+                  animationDelay: `${(i + 2) * 50}ms`,
+                  transition: 'opacity 0.2s, box-shadow 0.2s',
+                }}
+                onMouseEnter={e => { if (!n.lida) e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-card)' }}
+              >
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: cfg.bg }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: cfg.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-sm"
+                    style={{ color: n.lida ? 'var(--fg-muted)' : 'var(--fg)', fontWeight: n.lida ? 400 : 500 }}
+                  >
+                    {n.mensagem}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>
+                    {formatDate(n.data_referencia)}
+                  </p>
+                </div>
+                {!n.lida && (
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
+                    style={{ background: 'var(--verde-500)' }}
+                  />
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={cn('text-sm', n.lida ? 'text-gray-500' : 'text-gray-900 font-medium')}>
-                  {n.mensagem}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(n.data_referencia)}</p>
-              </div>
-              {!n.lida && (
-                <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-2" />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import { getDB } from '@/lib/db'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { Select } from '@/components/ui/select'
 import type { Aplicacao } from '@/types'
-import { FlaskConical, Filter } from 'lucide-react'
+import { FlaskConical, Filter, X } from 'lucide-react'
 
 const statusOptions = [
   { value: '', label: 'Todos os status' },
@@ -71,25 +71,30 @@ export default function AplicacoesPage() {
   const hasFilters = filtroStatus || filtroFazenda || filtroCultura
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto animate-slide-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Aplicações</h1>
-        <p className="text-gray-500 text-sm">
+    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="animate-enter animate-enter-1 mb-8">
+        <p className="section-label mb-1">Manejo</p>
+        <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
+          Aplicações
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
           {aplicacoes.length} aplicação{aplicacoes.length !== 1 ? 'ões' : ''} registrada{aplicacoes.length !== 1 ? 's' : ''}
         </p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
+      <div className="animate-enter animate-enter-2 card p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">Filtros</span>
+          <Filter className="w-4 h-4" style={{ color: 'var(--fg-muted)' }} />
+          <span className="section-label" style={{ margin: 0 }}>Filtros</span>
           {hasFilters && (
             <button
               onClick={() => { setFiltroStatus(''); setFiltroFazenda(''); setFiltroCultura('') }}
-              className="ml-auto text-xs text-green-600 hover:text-green-700"
+              className="ml-auto flex items-center gap-1 text-xs font-medium transition"
+              style={{ color: 'var(--primary)' }}
             >
-              Limpar filtros
+              <X className="w-3 h-3" />Limpar
             </button>
           )}
         </div>
@@ -101,18 +106,31 @@ export default function AplicacoesPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando...</div>
+        <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <FlaskConical className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">Nenhuma aplicação encontrada</p>
-          <p className="text-sm mt-1">
+        <div className="card animate-enter animate-enter-3 p-14 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'var(--bg-dark)' }}
+          >
+            <FlaskConical className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
+          </div>
+          <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nenhuma aplicação encontrada</p>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
             {hasFilters ? 'Tente ajustar os filtros.' : 'Vá a um talhão e registre a primeira aplicação.'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(a => <AplicacaoCard key={a.id} aplicacao={a} />)}
+          {filtered.map((a, i) => (
+            <div
+              key={a.id}
+              className="animate-enter"
+              style={{ animationDelay: `${(i + 3) * 50}ms` }}
+            >
+              <AplicacaoCard aplicacao={a} />
+            </div>
+          ))}
         </div>
       )}
     </div>

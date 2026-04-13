@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Sprout, Eye, EyeOff } from 'lucide-react'
+import { Sprout, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 
 export default function LoginPage() {
@@ -25,7 +25,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, senha }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Erro ao entrar'); return }
+      if (!res.ok) { setError(data.error || 'Credenciais inválidas'); return }
       login(data.user, data.token)
       router.push('/dashboard')
     } catch {
@@ -36,65 +36,193 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20 shadow-2xl animate-slide-in">
+    <div className="animate-enter" style={{ animationDelay: '0ms' }}>
+      {/* Logo */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-          <Sprout className="w-9 h-9 text-green-600" />
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+          style={{
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }}
+        >
+          <Sprout className="w-8 h-8" style={{ color: '#6ee7b7' }} />
         </div>
-        <h1 className="text-2xl font-bold text-white">DeckFarm</h1>
-        <p className="text-green-200 text-sm mt-1">Gestão Agrícola Inteligente</p>
+        <h1
+          className="font-display text-3xl font-bold"
+          style={{ color: '#fff' }}
+        >
+          DeckFarm
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          Gestão Agrícola Inteligente
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-green-100 mb-1">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="seu@email.com"
-            required
-            className="w-full px-4 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder:text-green-200 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-green-100 mb-1">Senha</label>
-          <div className="relative">
+      {/* Card */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.07)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '1.25rem',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+          backdropFilter: 'blur(20px)',
+          padding: '2rem',
+        }}
+      >
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <label
+              className="section-label"
+              style={{ color: 'rgba(255,255,255,0.5)' }}
+            >
+              Email
+            </label>
             <input
-              type={showPwd ? 'text' : 'password'}
-              value={senha}
-              onChange={e => setSenha(e.target.value)}
-              placeholder="••••••••"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="seu@email.com"
               required
-              className="w-full px-4 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder:text-green-200 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition pr-12"
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.75rem',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#fff',
+                fontSize: '0.9375rem',
+                outline: 'none',
+                transition: 'border-color 0.15s, box-shadow 0.15s',
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'rgba(110,231,183,0.5)'
+                e.target.style.boxShadow = '0 0 0 3px rgba(110,231,183,0.1)'
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = 'rgba(255,255,255,0.15)'
+                e.target.style.boxShadow = 'none'
+              }}
             />
-            <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-3.5 text-green-200 hover:text-white">
-              {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
           </div>
-        </div>
 
-        {error && <div className="bg-red-500/20 border border-red-400/30 text-red-100 text-sm px-4 py-2 rounded-lg">{error}</div>}
+          <div className="space-y-1.5">
+            <label
+              className="section-label"
+              style={{ color: 'rgba(255,255,255,0.5)' }}
+            >
+              Senha
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPwd ? 'text' : 'password'}
+                value={senha}
+                onChange={e => setSenha(e.target.value)}
+                placeholder="••••••••"
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 3rem 0.75rem 1rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#fff',
+                  fontSize: '0.9375rem',
+                  outline: 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = 'rgba(110,231,183,0.5)'
+                  e.target.style.boxShadow = '0 0 0 3px rgba(110,231,183,0.1)'
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'rgba(255,255,255,0.15)'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(!showPwd)}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'rgba(255,255,255,0.4)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-white text-green-700 font-semibold py-3 rounded-xl hover:bg-green-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {loading && (
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+          {error && (
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.15)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: '0.75rem',
+                padding: '0.75rem 1rem',
+                color: '#fca5a5',
+                fontSize: '0.875rem',
+              }}
+            >
+              {error}
+            </div>
           )}
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
 
-      <p className="text-center text-green-200 text-sm mt-6">
-        Não tem conta?{' '}
-        <Link href="/register" className="text-white font-semibold hover:underline">Criar conta</Link>
-      </p>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              padding: '0.8125rem 1rem',
+              borderRadius: '0.75rem',
+              background: loading ? 'rgba(110,231,183,0.4)' : 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
+              border: 'none',
+              color: '#052e16',
+              fontWeight: '600',
+              fontSize: '0.9375rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: loading ? 'none' : '0 4px 16px rgba(52,211,153,0.3)',
+              transition: 'opacity 0.15s, transform 0.15s',
+            }}
+            onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)' }}
+          >
+            {loading ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <ArrowRight className="w-4 h-4" />
+            )}
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+
+        <p className="text-center text-sm mt-6" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          Não tem conta?{' '}
+          <Link
+            href="/register"
+            style={{ color: '#6ee7b7', fontWeight: '600' }}
+            className="hover:underline"
+          >
+            Criar conta
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

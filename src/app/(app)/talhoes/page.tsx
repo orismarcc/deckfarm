@@ -50,56 +50,99 @@ export default function TalhoesPage() {
   })
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto animate-slide-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Talhões</h1>
-        <p className="text-gray-500 text-sm">
+    <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="animate-enter animate-enter-1 mb-8">
+        <p className="section-label mb-1">Mapa de cultivo</p>
+        <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
+          Talhões
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
           {talhoes.length} talhão{talhoes.length !== 1 ? 'ões' : ''} cadastrado{talhoes.length !== 1 ? 's' : ''}
         </p>
       </div>
 
-      <div className="flex gap-3 mb-5">
+      {/* Filters */}
+      <div className="animate-enter animate-enter-2 flex gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+          <Search
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4"
+            style={{ color: 'var(--fg-subtle)' }}
+          />
           <input
             value={busca}
             onChange={e => setBusca(e.target.value)}
             placeholder="Buscar talhão..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            style={{
+              width: '100%',
+              paddingLeft: '2.5rem',
+              paddingRight: '1rem',
+              paddingTop: '0.625rem',
+              paddingBottom: '0.625rem',
+              borderRadius: '0.75rem',
+              border: '1px solid var(--borda)',
+              background: 'var(--bg-card)',
+              color: 'var(--fg)',
+              fontSize: '0.875rem',
+              outline: 'none',
+            }}
           />
         </div>
-        <div className="w-48">
+        <div className="w-48 flex-shrink-0">
           <Select value={filtroFazenda} onChange={e => setFiltroFazenda(e.target.value)} options={fazendaOptions} />
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando...</div>
+        <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <Leaf className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">Nenhum talhão encontrado</p>
-          <p className="text-sm mt-1">Cadastre talhões dentro de cada fazenda.</p>
+        <div className="card animate-enter animate-enter-2 p-14 text-center">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'var(--bg-dark)' }}
+          >
+            <Leaf className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
+          </div>
+          <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nenhum talhão encontrado</p>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            {busca || filtroFazenda ? 'Tente ajustar os filtros.' : 'Cadastre talhões dentro de cada fazenda.'}
+          </p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
-          {filtered.map(t => (
+          {filtered.map((t, i) => (
             <Link key={t.id} href={`/talhoes/${t.id}`}>
-              <div className="bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow p-4 cursor-pointer">
-                <div className="flex items-center justify-between mb-2">
+              <div
+                className="card card-interactive p-4 cursor-pointer animate-enter"
+                style={{ animationDelay: `${(i + 2) * 70}ms` }}
+              >
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{culturaIcon(t.cultura)}</span>
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                      style={{ background: 'var(--verde-50)' }}
+                    >
+                      {culturaIcon(t.cultura)}
+                    </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{t.nome}</h3>
-                      <p className="text-xs text-gray-500">{t.fazenda?.nome}</p>
+                      <h3 className="font-semibold" style={{ color: 'var(--fg)' }}>{t.nome}</h3>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                        {t.fazenda?.nome}
+                      </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--fg-subtle)' }} />
                 </div>
-                <div className="flex items-center justify-between text-xs text-gray-500 mt-3">
-                  <span>{culturaLabel(t.cultura)} · {t.area} ha</span>
+
+                <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid var(--borda)' }}>
+                  <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                    {culturaLabel(t.cultura)} · {t.area} ha
+                  </span>
                   {t.atrasadas > 0 && (
-                    <span className="bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded-full">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: 'hsl(0 86% 95%)', color: 'hsl(0 72% 45%)' }}
+                    >
                       {t.atrasadas} atrasada{t.atrasadas !== 1 ? 's' : ''}
                     </span>
                   )}
