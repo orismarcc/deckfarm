@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils'
 import { LucideIcon } from 'lucide-react'
 
 interface StatCardProps {
@@ -9,53 +8,36 @@ interface StatCardProps {
   description?: string
 }
 
-const styles = {
-  default: {
-    wrap:  'bg-[--bg-card] border-[--borda]',
-    icon:  'bg-[--bg-dark] text-[--fg-muted]',
-    value: 'text-[--fg]',
-  },
-  danger: {
-    wrap:  'bg-red-50 border-red-100',
-    icon:  'bg-red-100 text-red-600',
-    value: 'text-red-700',
-  },
-  warning: {
-    wrap:  'bg-[hsl(43_90%_96%)] border-amber-100',
-    icon:  'bg-amber-100 text-amber-600',
-    value: 'text-amber-700',
-  },
-  success: {
-    wrap:  'bg-[hsl(142_60%_96%)] border-emerald-100',
-    icon:  'bg-emerald-100 text-emerald-600',
-    value: 'text-emerald-700',
-  },
-  info: {
-    wrap:  'bg-blue-50 border-blue-100',
-    icon:  'bg-blue-100 text-blue-600',
-    value: 'text-blue-700',
-  },
+const variants = {
+  default: { color: 'hsl(215 16% 40%)',   bg: 'hsl(215 16% 94%)',    accent: 'hsl(215 16% 70%)' },
+  danger:  { color: 'hsl(4 72% 50%)',     bg: 'hsl(4 86% 96%)',      accent: 'hsl(4 72% 50%)' },
+  warning: { color: 'hsl(38 70% 38%)',    bg: 'hsl(38 92% 95%)',     accent: 'hsl(38 92% 46%)' },
+  success: { color: 'hsl(160 84% 22%)',   bg: 'hsl(160 84% 96%)',    accent: 'hsl(160 84% 22%)' },
+  info:    { color: 'hsl(210 100% 45%)',  bg: 'hsl(210 100% 96%)',   accent: 'hsl(210 100% 45%)' },
 }
 
 export function StatCard({ label, value, icon: Icon, variant = 'default', description }: StatCardProps) {
-  const s = styles[variant]
+  const v = variants[variant]
   return (
-    <div className={cn(
-      'rounded-2xl p-4 border flex items-center gap-3 transition-all duration-200 hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5',
-      s.wrap
-    )}>
-      <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0', s.icon)}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div className="min-w-0">
-        <div className="section-label truncate">{label}</div>
-        <div className={cn('text-2xl font-bold leading-tight mt-0.5 tabular-nums', s.value)}>
-          {value}
+    <div className="card p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between">
+        <div
+          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: v.bg }}
+        >
+          <Icon size={15} style={{ color: v.color }} />
         </div>
+        <span className="text-[1.875rem] font-bold leading-none tabular-nums" style={{ color: 'var(--fg)' }}>
+          {value}
+        </span>
+      </div>
+      <div>
+        <p className="text-[0.8125rem] font-semibold" style={{ color: 'var(--fg-muted)' }}>{label}</p>
         {description && (
-          <div className="text-xs text-[--fg-subtle] mt-0.5 truncate">{description}</div>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>{description}</p>
         )}
       </div>
+      <div className="h-[3px] rounded-full" style={{ background: v.accent, opacity: 0.28 }} />
     </div>
   )
 }

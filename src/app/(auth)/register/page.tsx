@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Sprout, ArrowRight } from 'lucide-react'
+import { Sprout, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 
 export default function RegisterPage() {
@@ -35,156 +35,169 @@ export default function RegisterPage() {
     }
   }
 
-  const inputStyle = {
+  const inputBase: React.CSSProperties = {
     width: '100%',
-    padding: '0.75rem 1rem',
-    borderRadius: '0.75rem',
-    background: 'rgba(255,255,255,0.08)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    color: '#fff',
+    height: '2.875rem',
+    paddingLeft: '2.5rem',
+    paddingRight: '0.875rem',
+    borderRadius: '0.625rem',
+    border: '1.5px solid hsl(214 20% 88%)',
+    background: 'hsl(210 16% 97%)',
+    color: 'hsl(222 47% 11%)',
     fontSize: '0.9375rem',
     outline: 'none',
-    transition: 'border-color 0.15s, box-shadow 0.15s',
+    transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
   }
-
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(110,231,183,0.5)'
-    e.target.style.boxShadow = '0 0 0 3px rgba(110,231,183,0.1)'
+    e.target.style.borderColor = 'hsl(160 84% 22%)'
+    e.target.style.boxShadow = '0 0 0 3px hsl(160 84% 22% / 0.10)'
+    e.target.style.background = '#fff'
   }
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(255,255,255,0.15)'
+    e.target.style.borderColor = 'hsl(214 20% 88%)'
     e.target.style.boxShadow = 'none'
+    e.target.style.background = 'hsl(210 16% 97%)'
   }
 
-  return (
-    <div className="animate-enter" style={{ animationDelay: '0ms' }}>
-      <div className="flex flex-col items-center mb-8">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          }}
-        >
-          <Sprout className="w-8 h-8" style={{ color: '#6ee7b7' }} />
-        </div>
-        <h1 className="font-display text-3xl font-bold" style={{ color: '#fff' }}>
-          DeckFarm
-        </h1>
-        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
-          Crie sua conta e comece a gerenciar
-        </p>
-      </div>
+  const fields = [
+    { key: 'nome',  type: 'text',     icon: User, placeholder: 'Seu nome completo',  label: 'Nome', autoComplete: 'name' },
+    { key: 'email', type: 'email',    icon: Mail, placeholder: 'seu@email.com',       label: 'Email', autoComplete: 'email' },
+    { key: 'senha', type: 'password', icon: Lock, placeholder: 'Mínimo 8 caracteres', label: 'Senha', autoComplete: 'new-password' },
+  ]
 
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row">
+
+      {/* ── LEFT: Hero ─── */}
       <div
+        className="grain relative overflow-hidden flex flex-col justify-between lg:w-[42%] flex-shrink-0
+                   p-8 lg:p-12 min-h-[200px] lg:min-h-screen"
         style={{
-          background: 'rgba(255,255,255,0.07)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '1.25rem',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(20px)',
-          padding: '2rem',
+          background: 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)',
         }}
       >
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="section-label" style={{ color: 'rgba(255,255,255,0.5)' }}>Nome completo</label>
-            <input
-              type="text"
-              value={form.nome}
-              onChange={e => set('nome', e.target.value)}
-              placeholder="Seu nome"
-              required
-              style={inputStyle}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
+        <div style={{ position: 'absolute', top: '-80px', right: '-80px', width: '360px', height: '360px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.055) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '10%', left: '-60px', width: '280px', height: '280px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(52,211,153,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}>
+            <Sprout className="w-5 h-5" style={{ color: '#6ee7b7' }} />
+          </div>
+          <div>
+            <div className="font-display text-lg font-bold text-white leading-none">DeckFarm</div>
+            <div className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Gestão Agrícola
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 hidden lg:block">
+          <h1 className="font-display text-[2.75rem] font-bold leading-[1.1] text-white mb-5">
+            Comece agora<br />gratuitamente.
+          </h1>
+          <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Crie sua conta e tenha controle completo das suas operações agrícolas.
+          </p>
+        </div>
+
+        <div className="relative z-10 hidden lg:flex flex-col gap-3.5">
+          {[
+            'Cadastro rápido, sem cartão',
+            'Dados salvos localmente (offline)',
+            'Sincronização automática em nuvem',
+          ].map(f => (
+            <div key={f} className="flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#6ee7b7' }} />
+              <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{f}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── RIGHT: Form ─── */}
+      <div className="flex-1 flex items-center justify-center bg-white p-6 lg:p-12">
+        <div className="w-full max-w-[380px]">
+
+          <div className="mb-8">
+            <h2 className="font-display text-[1.875rem] font-bold leading-tight mb-2"
+              style={{ color: 'hsl(160 84% 14%)' }}>
+              Criar conta
+            </h2>
+            <p className="text-sm" style={{ color: 'hsl(215 16% 50%)' }}>
+              Preencha os dados abaixo para começar
+            </p>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="section-label" style={{ color: 'rgba(255,255,255,0.5)' }}>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              placeholder="seu@email.com"
-              required
-              style={inputStyle}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {fields.map(({ key, type, icon: Icon, placeholder, label, autoComplete }) => (
+              <div key={key} className="flex flex-col gap-1.5">
+                <label className="section-label">{label}</label>
+                <div style={{ position: 'relative' }}>
+                  <Icon
+                    size={15}
+                    style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }}
+                  />
+                  <input
+                    type={type}
+                    value={(form as any)[key]}
+                    onChange={e => set(key, e.target.value)}
+                    placeholder={placeholder}
+                    required
+                    autoComplete={autoComplete}
+                    style={inputBase}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                  />
+                </div>
+              </div>
+            ))}
 
-          <div className="space-y-1.5">
-            <label className="section-label" style={{ color: 'rgba(255,255,255,0.5)' }}>Senha</label>
-            <input
-              type="password"
-              value={form.senha}
-              onChange={e => set('senha', e.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              required
-              style={inputStyle}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
-          </div>
+            {error && (
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
+                style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 85%)' }}>
+                <AlertCircle size={15} className="flex-shrink-0 mt-px" style={{ color: 'hsl(4 72% 50%)' }} />
+                <span style={{ color: 'hsl(4 72% 38%)' }}>{error}</span>
+              </div>
+            )}
 
-          {error && (
-            <div
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2.5 font-bold rounded-[0.75rem] transition-all active:scale-[0.98] mt-1"
               style={{
-                background: 'rgba(239,68,68,0.15)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: '0.75rem',
-                padding: '0.75rem 1rem',
-                color: '#fca5a5',
-                fontSize: '0.875rem',
+                height: '3rem',
+                fontSize: '0.9375rem',
+                color: '#fff',
+                background: loading ? 'hsl(160 84% 30%)' : 'hsl(160 84% 22%)',
+                boxShadow: loading ? 'none' : '0 4px 20px -2px hsl(160 84% 22% / 0.4)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                border: 'none',
               }}
             >
-              {error}
-            </div>
-          )}
+              {loading ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <ArrowRight size={16} />
+              )}
+              {loading ? 'Criando conta...' : 'Criar conta grátis'}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              padding: '0.8125rem 1rem',
-              borderRadius: '0.75rem',
-              background: loading ? 'rgba(110,231,183,0.4)' : 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
-              border: 'none',
-              color: '#052e16',
-              fontWeight: '600',
-              fontSize: '0.9375rem',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: loading ? 'none' : '0 4px 16px rgba(52,211,153,0.3)',
-              transition: 'opacity 0.15s, transform 0.15s',
-            }}
-          >
-            {loading ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <ArrowRight className="w-4 h-4" />
-            )}
-            {loading ? 'Criando conta...' : 'Criar Conta'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm mt-6" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          Já tem conta?{' '}
-          <Link href="/login" style={{ color: '#6ee7b7', fontWeight: '600' }} className="hover:underline">
-            Entrar
-          </Link>
-        </p>
+          <p className="text-center text-sm mt-7" style={{ color: 'hsl(215 16% 52%)' }}>
+            Já tem conta?{' '}
+            <Link href="/login" style={{ color: 'hsl(160 84% 22%)', fontWeight: 700 }}
+              className="hover:underline underline-offset-2">
+              Entrar
+            </Link>
+          </p>
+        </div>
       </div>
+
     </div>
   )
 }

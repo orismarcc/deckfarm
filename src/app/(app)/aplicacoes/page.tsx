@@ -15,7 +15,6 @@ const statusOptions = [
   { value: 'proximo', label: 'Próximas (7d)' },
   { value: 'dentro_do_prazo', label: 'No prazo' },
 ]
-
 const culturaOptions = [
   { value: '', label: 'Todas as culturas' },
   { value: 'soja', label: 'Soja' },
@@ -44,10 +43,7 @@ export default function AplicacoesPage() {
       setFazendas(fazs)
       const apps = await db.aplicacoes.where('usuario_id').equals(user.id).reverse().sortBy('data_aplicacao')
       const enriched = await Promise.all(apps.map(async a => {
-        const [talhao, produto] = await Promise.all([
-          db.talhoes.get(a.talhao_id),
-          db.produtos.get(a.produto_id),
-        ])
+        const [talhao, produto] = await Promise.all([db.talhoes.get(a.talhao_id), db.produtos.get(a.produto_id)])
         return { ...a, talhao, produto }
       }))
       setAplicacoes(enriched as Aplicacao[])
@@ -72,29 +68,24 @@ export default function AplicacoesPage() {
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="animate-enter animate-enter-1 mb-8">
+      <div className="animate-enter-1 mb-8">
         <p className="section-label mb-1">Manejo</p>
-        <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
-          Aplicações
-        </h1>
+        <h1 className="font-display text-[2rem] font-bold" style={{ color: 'var(--fg)' }}>Aplicações</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
           {aplicacoes.length} aplicação{aplicacoes.length !== 1 ? 'ões' : ''} registrada{aplicacoes.length !== 1 ? 's' : ''}
         </p>
       </div>
 
       {/* Filters */}
-      <div className="animate-enter animate-enter-2 card p-4 mb-6">
+      <div className="animate-enter-2 card p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4" style={{ color: 'var(--fg-muted)' }} />
-          <span className="section-label" style={{ margin: 0 }}>Filtros</span>
+          <Filter size={13} style={{ color: 'var(--fg-muted)' }} />
+          <span className="section-label" style={{ display: 'inline' }}>Filtros</span>
           {hasFilters && (
-            <button
-              onClick={() => { setFiltroStatus(''); setFiltroFazenda(''); setFiltroCultura('') }}
-              className="ml-auto flex items-center gap-1 text-xs font-medium transition"
-              style={{ color: 'var(--primary)' }}
-            >
-              <X className="w-3 h-3" />Limpar
+            <button onClick={() => { setFiltroStatus(''); setFiltroFazenda(''); setFiltroCultura('') }}
+              className="ml-auto flex items-center gap-1 text-xs font-semibold"
+              style={{ color: 'hsl(160 84% 22%)' }}>
+              <X size={11} />Limpar
             </button>
           )}
         </div>
@@ -108,13 +99,8 @@ export default function AplicacoesPage() {
       {loading ? (
         <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="card animate-enter animate-enter-3 p-14 text-center">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--bg-dark)' }}
-          >
-            <FlaskConical className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
-          </div>
+        <div className="card animate-enter-3 p-14 text-center">
+          <div className="icon-circle icon-circle-muted w-14 h-14 mx-auto mb-4"><FlaskConical size={22} /></div>
           <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nenhuma aplicação encontrada</p>
           <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
             {hasFilters ? 'Tente ajustar os filtros.' : 'Vá a um talhão e registre a primeira aplicação.'}
@@ -123,11 +109,7 @@ export default function AplicacoesPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((a, i) => (
-            <div
-              key={a.id}
-              className="animate-enter"
-              style={{ animationDelay: `${(i + 3) * 50}ms` }}
-            >
+            <div key={a.id} className="animate-enter" style={{ animationDelay: `${(i + 3) * 45}ms` }}>
               <AplicacaoCard aplicacao={a} />
             </div>
           ))}

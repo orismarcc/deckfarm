@@ -8,12 +8,12 @@ import type { Notificacao } from '@/types'
 import { Bell, BellOff, CheckCheck, AlertTriangle, Clock, Calendar, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; bg: string; color: string }> = {
-  atrasado: { icon: AlertTriangle, bg: 'hsl(0 86% 97%)', color: 'hsl(0 72% 51%)' },
-  hoje: { icon: Clock, bg: 'hsl(210 100% 97%)', color: 'hsl(210 100% 50%)' },
-  amanha: { icon: Calendar, bg: 'hsl(45 100% 96%)', color: 'hsl(32 95% 44%)' },
-  tres_dias: { icon: Calendar, bg: 'hsl(45 100% 96%)', color: 'hsl(32 95% 50%)' },
-  semana: { icon: Info, bg: 'var(--verde-50)', color: 'var(--verde-500)' },
+const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; color: string; bg: string }> = {
+  atrasado: { icon: AlertTriangle, color: 'hsl(4 72% 50%)',    bg: 'hsl(4 86% 96%)' },
+  hoje:     { icon: Clock,         color: 'hsl(210 100% 45%)', bg: 'hsl(210 100% 96%)' },
+  amanha:   { icon: Calendar,      color: 'hsl(38 70% 38%)',   bg: 'hsl(38 92% 95%)' },
+  tres_dias:{ icon: Calendar,      color: 'hsl(38 70% 42%)',   bg: 'hsl(38 92% 95%)' },
+  semana:   { icon: Info,          color: 'hsl(160 84% 22%)',  bg: 'hsl(160 84% 96%)' },
 }
 
 export default function AlertasPage() {
@@ -31,8 +31,7 @@ export default function AlertasPage() {
       const nots = await db.notificacoes
         .where('usuario_id').equals(user.id)
         .and(n => n.data_referencia <= today)
-        .reverse()
-        .sortBy('data_referencia')
+        .reverse().sortBy('data_referencia')
       setNotificacoes(nots)
     } finally { setLoading(false) }
   }, [user, setNotificacoes])
@@ -40,15 +39,13 @@ export default function AlertasPage() {
   useEffect(() => { loadData() }, [loadData])
 
   async function marcarLida(id: string) {
-    const db = getDB()
-    await db.notificacoes.update(id, { lida: true })
+    await getDB().notificacoes.update(id, { lida: true })
     markNotificacaoLida(id)
   }
 
   async function marcarTodasLidas() {
-    const db = getDB()
     const naoLidas = notificacoes.filter(n => !n.lida)
-    await Promise.all(naoLidas.map(n => db.notificacoes.update(n.id, { lida: true })))
+    await Promise.all(naoLidas.map(n => getDB().notificacoes.update(n.id, { lida: true })))
     naoLidas.forEach(n => markNotificacaoLida(n.id))
   }
 
@@ -57,41 +54,33 @@ export default function AlertasPage() {
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-2xl mx-auto">
+
       {/* Header */}
-      <div className="animate-enter animate-enter-1 flex items-start justify-between mb-8">
+      <div className="animate-enter-1 flex items-start justify-between mb-8">
         <div>
           <p className="section-label mb-1">Notificações</p>
-          <h1 className="font-display text-3xl font-bold" style={{ color: 'var(--fg)' }}>
-            Alertas
-          </h1>
+          <h1 className="font-display text-[2rem] font-bold" style={{ color: 'var(--fg)' }}>Alertas</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
             {unread > 0 ? `${unread} não lido${unread !== 1 ? 's' : ''}` : 'Tudo em dia'}
           </p>
         </div>
         {unread > 0 && (
           <Button variant="ghost" size="sm" onClick={marcarTodasLidas} className="gap-1.5 mt-1">
-            <CheckCheck className="w-4 h-4" />
-            Marcar todas lidas
+            <CheckCheck size={14} /> Marcar todas lidas
           </Button>
         )}
       </div>
 
-      {/* Filter tabs */}
-      <div
-        className="animate-enter animate-enter-2 flex mb-6 p-1 rounded-xl"
-        style={{ background: 'var(--bg-dark)' }}
-      >
+      {/* Tabs */}
+      <div className="animate-enter-2 flex mb-6 p-1 rounded-xl" style={{ background: 'var(--bg-dark)' }}>
         {(['nao_lidas', 'todas'] as const).map(f => (
-          <button
-            key={f}
-            onClick={() => setFiltroLida(f)}
-            className="flex-1 py-2 rounded-lg text-sm font-medium transition"
+          <button key={f} onClick={() => setFiltroLida(f)}
+            className="flex-1 py-2 rounded-lg text-sm font-semibold transition"
             style={{
               background: filtroLida === f ? 'var(--bg-card)' : 'transparent',
               color: filtroLida === f ? 'var(--fg)' : 'var(--fg-muted)',
               boxShadow: filtroLida === f ? 'var(--shadow-xs)' : 'none',
-            }}
-          >
+            }}>
             {f === 'nao_lidas' ? `Não lidas${unread > 0 ? ` (${unread})` : ''}` : 'Todas'}
           </button>
         ))}
@@ -100,60 +89,39 @@ export default function AlertasPage() {
       {loading ? (
         <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="card animate-enter animate-enter-3 p-14 text-center">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--bg-dark)' }}
-          >
-            <BellOff className="w-7 h-7" style={{ color: 'var(--fg-subtle)' }} />
-          </div>
+        <div className="card animate-enter-3 p-14 text-center">
+          <div className="icon-circle icon-circle-muted w-14 h-14 mx-auto mb-4"><BellOff size={22} /></div>
           <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>
             {filtroLida === 'nao_lidas' ? 'Nenhum alerta não lido' : 'Nenhum alerta'}
           </p>
-          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-            Você está em dia com todas as aplicações!
-          </p>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Você está em dia com todas as aplicações!</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((n, i) => {
-            const cfg = notifConfig[n.tipo] || { icon: Bell, bg: 'var(--bg-dark)', color: 'var(--fg-muted)' }
+            const cfg = notifConfig[n.tipo] || { icon: Bell, color: 'var(--fg-muted)', bg: 'var(--bg-dark)' }
             const Icon = cfg.icon
             return (
-              <div
-                key={n.id}
+              <div key={n.id}
                 onClick={() => !n.lida && marcarLida(n.id)}
                 className={cn('card flex items-start gap-3 p-4 animate-enter', !n.lida && 'cursor-pointer')}
-                style={{
-                  opacity: n.lida ? 0.55 : 1,
-                  animationDelay: `${(i + 2) * 50}ms`,
-                  transition: 'opacity 0.2s, box-shadow 0.2s',
-                }}
+                style={{ opacity: n.lida ? 0.5 : 1, animationDelay: `${(i + 2) * 45}ms`, transition: 'opacity 0.2s, box-shadow 0.2s' }}
                 onMouseEnter={e => { if (!n.lida) e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-card)' }}
-              >
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: cfg.bg }}
-                >
-                  <Icon className="w-4 h-4" style={{ color: cfg.color }} />
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-card)' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: cfg.bg }}>
+                  <Icon size={15} style={{ color: cfg.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p
-                    className="text-sm"
-                    style={{ color: n.lida ? 'var(--fg-muted)' : 'var(--fg)', fontWeight: n.lida ? 400 : 500 }}
-                  >
+                  <p className="text-sm leading-relaxed"
+                    style={{ color: n.lida ? 'var(--fg-muted)' : 'var(--fg)', fontWeight: n.lida ? 400 : 500 }}>
                     {n.mensagem}
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>
-                    {formatDate(n.data_referencia)}
-                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>{formatDate(n.data_referencia)}</p>
                 </div>
                 {!n.lida && (
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
-                    style={{ background: 'var(--verde-500)' }}
-                  />
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
+                    style={{ background: 'hsl(160 84% 22%)' }} />
                 )}
               </div>
             )

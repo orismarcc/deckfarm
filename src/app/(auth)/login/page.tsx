@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Sprout, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { Sprout, Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 
 export default function LoginPage() {
@@ -35,194 +35,215 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <div className="animate-enter" style={{ animationDelay: '0ms' }}>
-      {/* Logo */}
-      <div className="flex flex-col items-center mb-8">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-          }}
-        >
-          <Sprout className="w-8 h-8" style={{ color: '#6ee7b7' }} />
-        </div>
-        <h1
-          className="font-display text-3xl font-bold"
-          style={{ color: '#fff' }}
-        >
-          DeckFarm
-        </h1>
-        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
-          Gestão Agrícola Inteligente
-        </p>
-      </div>
+  const inputBase: React.CSSProperties = {
+    width: '100%',
+    height: '2.875rem',
+    paddingLeft: '2.5rem',
+    paddingRight: '0.875rem',
+    borderRadius: '0.625rem',
+    border: '1.5px solid hsl(214 20% 88%)',
+    background: 'hsl(210 16% 97%)',
+    color: 'hsl(222 47% 11%)',
+    fontSize: '0.9375rem',
+    outline: 'none',
+    transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
+  }
 
-      {/* Card */}
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = 'hsl(160 84% 22%)'
+    e.target.style.boxShadow = '0 0 0 3px hsl(160 84% 22% / 0.10)'
+    e.target.style.background = '#fff'
+  }
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = 'hsl(214 20% 88%)'
+    e.target.style.boxShadow = 'none'
+    e.target.style.background = 'hsl(210 16% 97%)'
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row">
+
+      {/* ── LEFT: Hero ───────────────────────────────────────────── */}
       <div
+        className="grain relative overflow-hidden flex flex-col justify-between lg:w-[42%] flex-shrink-0
+                   p-8 lg:p-12 min-h-[220px] lg:min-h-screen"
         style={{
-          background: 'rgba(255,255,255,0.07)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '1.25rem',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(20px)',
-          padding: '2rem',
+          background: 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)',
         }}
       >
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label
-              className="section-label"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-            >
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-              style={{
-                width: '100%',
-                padding: '0.75rem 1rem',
-                borderRadius: '0.75rem',
-                background: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: '#fff',
-                fontSize: '0.9375rem',
-                outline: 'none',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
-              }}
-              onFocus={e => {
-                e.target.style.borderColor = 'rgba(110,231,183,0.5)'
-                e.target.style.boxShadow = '0 0 0 3px rgba(110,231,183,0.1)'
-              }}
-              onBlur={e => {
-                e.target.style.borderColor = 'rgba(255,255,255,0.15)'
-                e.target.style.boxShadow = 'none'
-              }}
-            />
-          </div>
+        {/* Decorative blobs */}
+        <div style={{ position: 'absolute', top: '-80px', right: '-80px', width: '360px', height: '360px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.055) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '10%', left: '-60px', width: '280px', height: '280px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(52,211,153,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-          <div className="space-y-1.5">
-            <label
-              className="section-label"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-            >
-              Senha
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPwd ? 'text' : 'password'}
-                value={senha}
-                onChange={e => setSenha(e.target.value)}
-                placeholder="••••••••"
-                required
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 3rem 0.75rem 1rem',
-                  borderRadius: '0.75rem',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  color: '#fff',
-                  fontSize: '0.9375rem',
-                  outline: 'none',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-                onFocus={e => {
-                  e.target.style.borderColor = 'rgba(110,231,183,0.5)'
-                  e.target.style.boxShadow = '0 0 0 3px rgba(110,231,183,0.1)'
-                }}
-                onBlur={e => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.15)'
-                  e.target.style.boxShadow = 'none'
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwd(!showPwd)}
-                style={{
-                  position: 'absolute',
-                  right: '0.75rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'rgba(255,255,255,0.4)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
+          >
+            <Sprout className="w-5 h-5" style={{ color: '#6ee7b7' }} />
+          </div>
+          <div>
+            <div className="font-display text-lg font-bold text-white leading-none">DeckFarm</div>
+            <div className="text-[10px] tracking-widest uppercase mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Gestão Agrícola
             </div>
           </div>
+        </div>
 
-          {error && (
-            <div
-              style={{
-                background: 'rgba(239,68,68,0.15)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: '0.75rem',
-                padding: '0.75rem 1rem',
-                color: '#fca5a5',
-                fontSize: '0.875rem',
-              }}
-            >
-              {error}
+        {/* Headline — desktop only */}
+        <div className="relative z-10 hidden lg:block">
+          <h1 className="font-display text-[2.75rem] font-bold leading-[1.1] text-white mb-5">
+            Controle total<br />da sua fazenda.
+          </h1>
+          <p className="text-[0.9375rem] leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Gerencie talhões, aplicações e alertas agronômicos — mesmo sem internet.
+          </p>
+        </div>
+
+        {/* Features — desktop only */}
+        <div className="relative z-10 hidden lg:flex flex-col gap-3.5">
+          {[
+            'Offline-first com sync automático',
+            'Alertas inteligentes de reaplicação',
+            'Cronograma visual de plantio',
+          ].map(f => (
+            <div key={f} className="flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#6ee7b7' }} />
+              <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{f}</span>
             </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              padding: '0.8125rem 1rem',
-              borderRadius: '0.75rem',
-              background: loading ? 'rgba(110,231,183,0.4)' : 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
-              border: 'none',
-              color: '#052e16',
-              fontWeight: '600',
-              fontSize: '0.9375rem',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: loading ? 'none' : '0 4px 16px rgba(52,211,153,0.3)',
-              transition: 'opacity 0.15s, transform 0.15s',
-            }}
-            onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)' }}
-          >
-            {loading ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <ArrowRight className="w-4 h-4" />
-            )}
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <p className="text-center text-sm mt-6" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          Não tem conta?{' '}
-          <Link
-            href="/register"
-            style={{ color: '#6ee7b7', fontWeight: '600' }}
-            className="hover:underline"
-          >
-            Criar conta
-          </Link>
-        </p>
+          ))}
+        </div>
       </div>
+
+      {/* ── RIGHT: Form ──────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center bg-white p-6 lg:p-12">
+        <div className="w-full max-w-[380px]">
+
+          {/* Header */}
+          <div className="mb-8">
+            <h2 className="font-display text-[1.875rem] font-bold leading-tight mb-2"
+              style={{ color: 'hsl(160 84% 14%)' }}>
+              Bem-vindo de volta
+            </h2>
+            <p className="text-sm" style={{ color: 'hsl(215 16% 50%)' }}>
+              Entre na sua conta para gerenciar suas fazendas
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+            {/* Email */}
+            <div className="flex flex-col gap-1.5">
+              <label className="section-label">Email</label>
+              <div style={{ position: 'relative' }}>
+                <Mail
+                  size={15}
+                  style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }}
+                />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  required
+                  autoComplete="email"
+                  style={inputBase}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                />
+              </div>
+            </div>
+
+            {/* Senha */}
+            <div className="flex flex-col gap-1.5">
+              <label className="section-label">Senha</label>
+              <div style={{ position: 'relative' }}>
+                <Lock
+                  size={15}
+                  style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }}
+                />
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  value={senha}
+                  onChange={e => setSenha(e.target.value)}
+                  placeholder="Sua senha"
+                  required
+                  autoComplete="current-password"
+                  style={{ ...inputBase, paddingRight: '2.75rem' }}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  tabIndex={-1}
+                  style={{
+                    position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                    color: 'hsl(215 16% 60%)', background: 'none', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', padding: '2px',
+                  }}
+                >
+                  {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
+                style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 85%)' }}
+              >
+                <AlertCircle size={15} className="flex-shrink-0 mt-px" style={{ color: 'hsl(4 72% 50%)' }} />
+                <span style={{ color: 'hsl(4 72% 38%)' }}>{error}</span>
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2.5 font-bold rounded-[0.75rem] transition-all active:scale-[0.98] mt-1"
+              style={{
+                height: '3rem',
+                fontSize: '0.9375rem',
+                color: '#fff',
+                background: loading
+                  ? 'hsl(160 84% 30%)'
+                  : 'hsl(160 84% 22%)',
+                boxShadow: loading ? 'none' : '0 4px 20px -2px hsl(160 84% 22% / 0.4)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                border: 'none',
+              }}
+            >
+              {loading ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <ArrowRight size={16} />
+              )}
+              {loading ? 'Entrando...' : 'Entrar na conta'}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <p className="text-center text-sm mt-7" style={{ color: 'hsl(215 16% 52%)' }}>
+            Não tem conta?{' '}
+            <Link
+              href="/register"
+              style={{ color: 'hsl(160 84% 22%)', fontWeight: 700 }}
+              className="hover:underline underline-offset-2"
+            >
+              Criar conta grátis
+            </Link>
+          </p>
+        </div>
+      </div>
+
     </div>
   )
 }
