@@ -28,7 +28,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'h-10 w-full rounded-xl border bg-white text-sm text-[--fg] transition-all duration-150',
+              'h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150',
               'placeholder:text-[--fg-subtle]',
               'focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary]',
               'disabled:opacity-50 disabled:cursor-not-allowed',
@@ -36,6 +36,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               icon ? 'pl-9 pr-3' : 'px-3',
               className
             )}
+            style={{ background: 'var(--input-bg)', ...props.style }}
             {...props}
           />
         </div>

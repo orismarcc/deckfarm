@@ -16,7 +16,7 @@ export default function FazendasPage() {
   const { fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, addFazenda, updateFazenda, deleteFazenda } = useAppStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState<Fazenda | null>(null)
-  const [form, setForm] = useState({ nome: '', localizacao: '', area_total: '' })
+  const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '' })
   const [loading, setLoading] = useState(false)
   const [busca, setBusca] = useState('')
 
@@ -35,10 +35,10 @@ export default function FazendasPage() {
   function openModal(f?: Fazenda) {
     if (f) {
       setEditando(f)
-      setForm({ nome: f.nome, localizacao: f.localizacao, area_total: f.area_total?.toString() || '' })
+      setForm({ nome: f.nome, localizacao: f.localizacao, nome_produtor: f.nome_produtor || '', area_total: f.area_total?.toString() || '' })
     } else {
       setEditando(null)
-      setForm({ nome: '', localizacao: '', area_total: '' })
+      setForm({ nome: '', localizacao: '', nome_produtor: '', area_total: '' })
     }
     setModalOpen(true)
   }
@@ -50,12 +50,13 @@ export default function FazendasPage() {
       const db = getDB()
       const now = new Date().toISOString()
       if (editando) {
-        const updated = { ...editando, ...form, area_total: form.area_total ? Number(form.area_total) : undefined, updatedAt: now, _syncStatus: 'pending' as const }
+        const updated = { ...editando, nome: form.nome, localizacao: form.localizacao, nome_produtor: form.nome_produtor || undefined, area_total: form.area_total ? Number(form.area_total) : undefined, updatedAt: now, _syncStatus: 'pending' as const }
         await db.fazendas.put(updated)
         updateFazenda(editando.id, updated)
       } else {
         const fazenda: Fazenda = {
           id: gerarId(), nome: form.nome, localizacao: form.localizacao,
+          nome_produtor: form.nome_produtor || undefined,
           area_total: form.area_total ? Number(form.area_total) : undefined,
           usuario_id: user.id, createdAt: now, updatedAt: now, _syncStatus: 'pending',
         }
@@ -151,7 +152,13 @@ export default function FazendasPage() {
                   </div>
 
                   <h3 className="font-semibold mb-0.5" style={{ color: 'var(--fg)' }}>{f.nome}</h3>
-                  <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>{f.localizacao}</p>
+                  <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>{f.localizacao}</p>
+                  {f.nome_produtor && (
+                    <p className="text-xs mb-4 mt-0.5" style={{ color: 'var(--fg-subtle)' }}>
+                      Produtor: {f.nome_produtor}
+                    </p>
+                  )}
+                  {!f.nome_produtor && <div className="mb-4" />}
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-xl px-3 py-2.5" style={{ background: 'var(--bg)' }}>
@@ -191,15 +198,22 @@ export default function FazendasPage() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editando ? 'Editar Fazenda' : 'Nova Fazenda'}>
-        <div className="space-y-4">
-          <Input label="Nome da fazenda" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Fazenda Santa Rita" required />
-          <Input label="Localização / Município" value={form.localizacao} onChange={e => setForm(f => ({ ...f, localizacao: e.target.value }))} placeholder="Ex: Confresa - MT" />
-          <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />
-          <div className="flex gap-3 pt-2">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editando ? 'Editar Fazenda' : 'Nova Fazenda'}
+        footer={
+          <div className="flex gap-3">
             <Button variant="outline" onClick={() => setModalOpen(false)} className="flex-1">Cancelar</Button>
             <Button onClick={handleSave} loading={loading} className="flex-1">{editando ? 'Salvar' : 'Criar'}</Button>
           </div>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Nome da fazenda" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Fazenda Santa Rita" required />
+          <Input label="Nome do produtor" value={form.nome_produtor} onChange={e => setForm(f => ({ ...f, nome_produtor: e.target.value }))} placeholder="Ex: João da Silva" />
+          <Input label="Localização / Município" value={form.localizacao} onChange={e => setForm(f => ({ ...f, localizacao: e.target.value }))} placeholder="Ex: Confresa - MT" />
+          <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />
         </div>
       </Modal>
     </div>

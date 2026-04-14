@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/app'
+import { useAuthStore } from '@/store/auth'
 import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, Bell } from 'lucide-react'
 
 const nav = [
@@ -14,9 +14,9 @@ const nav = [
 ]
 
 export function MobileNav() {
-  const pathname = usePathname()
+  const pathname  = usePathname()
   const { notificacoes } = useAppStore()
-  const unread = notificacoes.filter(n => !n.lida).length
+  const unread    = notificacoes.filter(n => !n.lida).length
 
   return (
     <nav
@@ -26,30 +26,28 @@ export function MobileNav() {
       <div
         className="mx-3 mb-1.5 rounded-2xl overflow-hidden"
         style={{
-          background: 'rgba(255,255,255,0.92)',
+          background: 'var(--bg-card)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 10px 40px -4px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)',
+          boxShadow: '0 10px 40px -4px rgba(0,0,0,0.15), 0 0 0 1px var(--borda)',
         }}
       >
         <div className="flex">
           {nav.map(({ href, icon: Icon, label }) => {
-            const active = pathname.startsWith(href)
+            const active    = pathname.startsWith(href)
             const isAlertas = href === '/alertas'
             return (
               <Link
                 key={href}
                 href={href}
-                className={cn(
-                  'flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-all duration-150',
-                  active ? 'text-[--primary]' : 'text-[--fg-subtle]'
-                )}
+                className="flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-all duration-150"
+                style={{ color: active ? 'hsl(160 84% 22%)' : 'var(--fg-subtle)' }}
               >
                 <div className="relative">
-                  <div className={cn(
-                    'w-6 h-6 flex items-center justify-center rounded-lg transition-all duration-150',
-                    active && 'bg-[--primary]/10'
-                  )}>
+                  <div
+                    className="w-6 h-6 flex items-center justify-center rounded-lg transition-all duration-150"
+                    style={{ background: active ? 'hsl(160 84% 22% / 0.10)' : 'transparent' }}
+                  >
                     <Icon className="w-[18px] h-[18px]" />
                   </div>
                   {isAlertas && unread > 0 && (
@@ -58,10 +56,10 @@ export function MobileNav() {
                     </span>
                   )}
                 </div>
-                <span className={cn(
-                  'text-[10px] font-semibold tracking-tight',
-                  active ? 'text-[--primary]' : 'text-[--fg-subtle]'
-                )}>
+                <span
+                  className="text-[10px] font-semibold tracking-tight"
+                  style={{ color: active ? 'hsl(160 84% 22%)' : 'var(--fg-subtle)' }}
+                >
                   {label}
                 </span>
               </Link>

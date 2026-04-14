@@ -4,10 +4,13 @@ export type ProdutoTipo = 'herbicida' | 'fertilizante' | 'defensivo' | 'fungicid
 export type AplicacaoStatus = 'dentro_do_prazo' | 'proximo' | 'hoje' | 'atrasado'
 export type NotificacaoTipo = 'semana' | 'tres_dias' | 'amanha' | 'hoje' | 'atrasado'
 export type UserRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
+export type SafraStatus = 'planejada' | 'em_andamento' | 'finalizada'
+export type MembroRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
 
 export interface User {
   id: string
   nome: string
+  apelido?: string  // como quer ser chamado no app
   email: string
   senha?: string
   tipo: UserRole
@@ -19,13 +22,13 @@ export interface Fazenda {
   id: string
   nome: string
   localizacao: string
+  nome_produtor?: string
   area_total?: number
   usuario_id: string
   latitude?: number
   longitude?: number
   createdAt: string
   updatedAt: string
-  // local only
   _syncStatus?: 'synced' | 'pending' | 'conflict'
 }
 
@@ -37,10 +40,43 @@ export interface Talhao {
   fazenda_id: string
   latitude?: number
   longitude?: number
-  coordenadas?: string // GeoJSON for future map support
+  coordenadas?: string // GeoJSON for map support
+  descricao?: string
+  foto?: string // base64
   createdAt: string
   updatedAt: string
   _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface Safra {
+  id: string
+  nome: string // e.g. "2025/26"
+  ano_inicio: number
+  ano_fim: number
+  fazenda_id: string
+  cultura: CulturaType
+  area_plantada?: number
+  data_plantio?: string
+  data_colheita_prevista?: string
+  data_colheita_real?: string
+  status: SafraStatus
+  produtividade_media?: number // sacas/ha
+  observacoes?: string
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface FazendaMembro {
+  id: string
+  fazenda_id: string
+  usuario_id: string
+  usuario_nome?: string
+  usuario_email: string
+  role: MembroRole
+  status: 'pendente' | 'ativo' | 'inativo'
+  convidado_por: string
+  createdAt: string
 }
 
 export interface CulturaFase {
@@ -62,7 +98,7 @@ export interface Produto {
   id: string
   nome: string
   tipo: ProdutoTipo
-  prazo_medio_aplicacao: number // days
+  prazo_medio_aplicacao: number
   fabricante?: string
   registro_mapa?: string
   unidade?: string
@@ -76,8 +112,9 @@ export interface Aplicacao {
   id: string
   talhao_id: string
   produto_id: string
-  data_aplicacao: string // ISO date
-  proxima_aplicacao: string // ISO date - auto calculated
+  safra_id?: string
+  data_aplicacao: string
+  proxima_aplicacao: string
   status: AplicacaoStatus
   dose?: number
   unidade_dose?: string
@@ -86,11 +123,11 @@ export interface Aplicacao {
   observacoes?: string
   clima?: string
   temperatura?: number
+  fotos?: string[]
   usuario_id: string
   createdAt: string
   updatedAt: string
   _syncStatus?: 'synced' | 'pending' | 'conflict'
-  // joins
   talhao?: Talhao
   produto?: Produto
 }
@@ -106,7 +143,6 @@ export interface Notificacao {
   talhao_id?: string
   fazenda_id?: string
   createdAt: string
-  // joins
   aplicacao?: Aplicacao
 }
 

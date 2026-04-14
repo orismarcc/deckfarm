@@ -8,18 +8,17 @@ import { useAuthStore } from '@/store/auth'
 export default function LoginPage() {
   const router = useRouter()
   const { login } = useAuthStore()
-  const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
+  const [email, setEmail]     = useState('')
+  const [senha, setSenha]     = useState('')
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]     = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
-      const res = await fetch('/api/auth/login', {
+      const res  = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, senha }),
@@ -30,46 +29,58 @@ export default function LoginPage() {
       router.push('/dashboard')
     } catch {
       setError('Erro de conexão. Verifique sua internet.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const inputBase: React.CSSProperties = {
-    width: '100%',
-    height: '2.875rem',
-    paddingLeft: '2.5rem',
-    paddingRight: '0.875rem',
+    width: '100%', height: '2.875rem',
+    paddingLeft: '2.5rem', paddingRight: '0.875rem',
     borderRadius: '0.625rem',
     border: '1.5px solid hsl(214 20% 88%)',
     background: 'hsl(210 16% 97%)',
     color: 'hsl(222 47% 11%)',
-    fontSize: '0.9375rem',
-    outline: 'none',
+    fontSize: '0.9375rem', outline: 'none',
     transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
   }
-
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'hsl(160 84% 22%)'
-    e.target.style.boxShadow = '0 0 0 3px hsl(160 84% 22% / 0.10)'
-    e.target.style.background = '#fff'
+    e.target.style.boxShadow   = '0 0 0 3px hsl(160 84% 22% / 0.10)'
+    e.target.style.background  = '#fff'
   }
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'hsl(214 20% 88%)'
-    e.target.style.boxShadow = 'none'
-    e.target.style.background = 'hsl(210 16% 97%)'
+    e.target.style.boxShadow   = 'none'
+    e.target.style.background  = 'hsl(210 16% 97%)'
   }
+
+  const heroGradient = 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)'
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row' }}>
+    <div className="min-h-screen flex flex-col md:flex-row">
 
-      {/* ── LEFT: Hero ───────────────────────────────────────────── */}
+      {/* ── MOBILE: compact brand bar ──────────────────────────── */}
       <div
-        className="grain relative overflow-hidden"
+        className="md:hidden flex items-center gap-3 px-5 py-4 flex-shrink-0"
+        style={{ background: heroGradient }}
+      >
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}>
+          <Sprout className="w-4 h-4" style={{ color: '#6ee7b7' }} />
+        </div>
+        <div>
+          <div className="font-display text-base font-bold text-white leading-none">DeckFarm</div>
+          <div className="text-[9px] tracking-widest uppercase mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            Gestão Agrícola
+          </div>
+        </div>
+      </div>
+
+      {/* ── DESKTOP: full hero panel ────────────────────────────── */}
+      <div
+        className="grain relative overflow-hidden hidden md:flex flex-col justify-between flex-shrink-0"
         style={{
-          width: '42%', flexShrink: 0, display: 'flex', flexDirection: 'column',
-          justifyContent: 'space-between', padding: '3rem', minHeight: '100vh',
-          background: 'linear-gradient(145deg, hsl(160 84% 7%) 0%, hsl(162 75% 11%) 50%, hsl(200 70% 9%) 100%)',
+          width: '42%', padding: '3rem', minHeight: '100vh',
+          background: heroGradient,
         }}
       >
         {/* Decorative blobs */}
@@ -78,10 +89,8 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
-          >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}>
             <Sprout className="w-5 h-5" style={{ color: '#6ee7b7' }} />
           </div>
           <div>
@@ -104,11 +113,7 @@ export default function LoginPage() {
 
         {/* Features */}
         <div className="relative z-10 flex flex-col gap-3.5">
-          {[
-            'Offline-first com sync automático',
-            'Alertas inteligentes de reaplicação',
-            'Cronograma visual de plantio',
-          ].map(f => (
+          {['Offline-first com sync automático', 'Alertas inteligentes de reaplicação', 'Cronograma visual de plantio'].map(f => (
             <div key={f} className="flex items-center gap-3">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#6ee7b7' }} />
               <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{f}</span>
@@ -117,14 +122,19 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── RIGHT: Form ──────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', padding: '3rem' }}>
+      {/* ── FORM PANEL ──────────────────────────────────────────── */}
+      <div
+        className="flex-1 flex items-start md:items-center justify-center bg-white pt-10 md:pt-0"
+        style={{ padding: 'clamp(1.5rem, 6vw, 3rem)' }}
+      >
         <div className="w-full max-w-[380px]">
 
           {/* Header */}
           <div className="mb-8">
-            <h2 className="font-display text-[1.875rem] font-bold leading-tight mb-2"
-              style={{ color: 'hsl(160 84% 14%)' }}>
+            <h2
+              className="font-display font-bold leading-tight mb-2"
+              style={{ fontSize: 'clamp(1.5rem, 5vw, 1.875rem)', color: 'hsl(160 84% 14%)' }}
+            >
               Bem-vindo de volta
             </h2>
             <p className="text-sm" style={{ color: 'hsl(215 16% 50%)' }}>
@@ -139,20 +149,11 @@ export default function LoginPage() {
             <div className="flex flex-col gap-1.5">
               <label className="section-label">Email</label>
               <div style={{ position: 'relative' }}>
-                <Mail
-                  size={15}
-                  style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }}
-                />
+                <Mail size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }} />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  required
-                  autoComplete="email"
-                  style={inputBase}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="seu@email.com" required autoComplete="email"
+                  style={inputBase} onFocus={onFocus} onBlur={onBlur}
                 />
               </div>
             </div>
@@ -161,31 +162,14 @@ export default function LoginPage() {
             <div className="flex flex-col gap-1.5">
               <label className="section-label">Senha</label>
               <div style={{ position: 'relative' }}>
-                <Lock
-                  size={15}
-                  style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }}
-                />
+                <Lock size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 55%)', pointerEvents: 'none' }} />
                 <input
-                  type={showPwd ? 'text' : 'password'}
-                  value={senha}
-                  onChange={e => setSenha(e.target.value)}
-                  placeholder="Sua senha"
-                  required
-                  autoComplete="current-password"
-                  style={{ ...inputBase, paddingRight: '2.75rem' }}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
+                  type={showPwd ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)}
+                  placeholder="Sua senha" required autoComplete="current-password"
+                  style={{ ...inputBase, paddingRight: '2.75rem' }} onFocus={onFocus} onBlur={onBlur}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd(v => !v)}
-                  tabIndex={-1}
-                  style={{
-                    position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
-                    color: 'hsl(215 16% 60%)', background: 'none', border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', padding: '2px',
-                  }}
-                >
+                <button type="button" onClick={() => setShowPwd(v => !v)} tabIndex={-1}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'hsl(215 16% 60%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}>
                   {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
@@ -193,10 +177,8 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div
-                className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
-                style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 85%)' }}
-              >
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
+                style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 85%)' }}>
                 <AlertCircle size={15} className="flex-shrink-0 mt-px" style={{ color: 'hsl(4 72% 50%)' }} />
                 <span style={{ color: 'hsl(4 72% 38%)' }}>{error}</span>
               </div>
@@ -204,29 +186,18 @@ export default function LoginPage() {
 
             {/* Submit */}
             <button
-              type="submit"
-              disabled={loading}
+              type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2.5 font-bold rounded-[0.75rem] transition-all active:scale-[0.98] mt-1"
               style={{
-                height: '3rem',
-                fontSize: '0.9375rem',
-                color: '#fff',
-                background: loading
-                  ? 'hsl(160 84% 30%)'
-                  : 'hsl(160 84% 22%)',
+                height: '3rem', fontSize: '0.9375rem', color: '#fff', border: 'none',
+                background: loading ? 'hsl(160 84% 30%)' : 'hsl(160 84% 22%)',
                 boxShadow: loading ? 'none' : '0 4px 20px -2px hsl(160 84% 22% / 0.4)',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                border: 'none',
               }}
             >
-              {loading ? (
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <ArrowRight size={16} />
-              )}
+              {loading
+                ? <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                : <ArrowRight size={16} />}
               {loading ? 'Entrando...' : 'Entrar na conta'}
             </button>
           </form>
@@ -234,11 +205,7 @@ export default function LoginPage() {
           {/* Footer */}
           <p className="text-center text-sm mt-7" style={{ color: 'hsl(215 16% 52%)' }}>
             Não tem conta?{' '}
-            <Link
-              href="/register"
-              style={{ color: 'hsl(160 84% 22%)', fontWeight: 700 }}
-              className="hover:underline underline-offset-2"
-            >
+            <Link href="/register" style={{ color: 'hsl(160 84% 22%)', fontWeight: 700 }} className="hover:underline underline-offset-2">
               Criar conta grátis
             </Link>
           </p>

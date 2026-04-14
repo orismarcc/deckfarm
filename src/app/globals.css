@@ -1,8 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,700;0,9..144,800;1,9..144,700&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ── Design Tokens ─────────────────────────────────────────────── */
 :root {
@@ -48,6 +45,35 @@
 
   --glass-bg:     rgba(255, 255, 255, 0.13);
   --glass-border: rgba(255, 255, 255, 0.22);
+
+  /* Tokens dependentes do tema */
+  --header-bg:      rgba(247, 245, 240, 0.92);
+  --input-bg:       hsl(210 16% 97%);
+  --input-focus-bg: #ffffff;
+  --muted-bg:       hsl(215 16% 94%);
+  --muted-fg:       hsl(215 16% 45%);
+}
+
+/* ── Dark Mode ───────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:        hsl(222 22% 9%);
+  --bg-dark:   hsl(222 22% 6%);
+  --bg-card:   hsl(222 22% 13%);
+  --borda:     hsl(222 22% 22%);
+  --fg:        hsl(210 30% 94%);
+  --fg-muted:  hsl(215 16% 60%);
+  --fg-subtle: hsl(215 16% 42%);
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.25), 0 0 0 1px rgb(0 0 0 / 0.18);
+  --shadow-md:   0 4px 12px -2px rgb(0 0 0 / 0.30), 0 2px 4px -2px rgb(0 0 0 / 0.18);
+  --glass-bg:     rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.10);
+
+  /* Tokens dependentes do tema — dark */
+  --header-bg:      rgba(17, 21, 33, 0.93);
+  --input-bg:       hsl(222 22% 17%);
+  --input-focus-bg: hsl(222 22% 19%);
+  --muted-bg:       hsl(222 22% 20%);
+  --muted-fg:       hsl(215 16% 58%);
 }
 
 /* ── Base ──────────────────────────────────────────────────────── */
@@ -127,7 +153,7 @@ input, select, textarea, button { font-family: inherit; }
 .card-interactive:hover {
   box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
-  border-color: hsl(214 20% 82%);
+  border-color: var(--fg-subtle);
 }
 .card-interactive:active {
   transform: translateY(0);
@@ -155,7 +181,7 @@ input, select, textarea, button { font-family: inherit; }
 .icon-circle-danger  { background: hsl(4 86% 58% / 0.10);   color: hsl(4 86% 58%); }
 .icon-circle-warning { background: hsl(38 92% 46% / 0.10);  color: hsl(38 92% 46%); }
 .icon-circle-info    { background: hsl(221 83% 53% / 0.10); color: hsl(221 83% 53%); }
-.icon-circle-muted   { background: hsl(215 16% 94%);        color: hsl(215 16% 45%); }
+.icon-circle-muted   { background: var(--muted-bg);          color: var(--muted-fg); }
 
 /* ── Icon squares ────────────────────────────────────────────────── */
 .icon-sq {
@@ -170,7 +196,7 @@ input, select, textarea, button { font-family: inherit; }
 .icon-sq-danger  { background: hsl(4 86% 58% / 0.10);   color: hsl(4 86% 58%); }
 .icon-sq-warning { background: hsl(38 92% 46% / 0.10);  color: hsl(38 92% 46%); }
 .icon-sq-info    { background: hsl(221 83% 53% / 0.10); color: hsl(221 83% 53%); }
-.icon-sq-muted   { background: hsl(215 16% 94%);        color: hsl(215 16% 45%); }
+.icon-sq-muted   { background: var(--muted-bg);          color: var(--muted-fg); }
 .icon-sq-verde   { background: var(--verde-50);          color: var(--verde-700); }
 
 /* ── Status badges ───────────────────────────────────────────────── */
@@ -184,11 +210,17 @@ input, select, textarea, button { font-family: inherit; }
   border-radius: 9999px;
   white-space: nowrap;
 }
-.badge-danger  { background: hsl(4 86% 96%);  color: hsl(4 72% 40%);  border: 1px solid hsl(4 72% 40% / 0.25); }
-.badge-today   { background: hsl(210 100% 96%); color: hsl(210 100% 38%); border: 1px solid hsl(210 100% 38% / 0.25); }
-.badge-warning { background: hsl(38 92% 95%); color: hsl(38 70% 32%);  border: 1px solid hsl(38 92% 46% / 0.30); }
-.badge-success { background: hsl(142 60% 94%); color: hsl(142 72% 28%); border: 1px solid hsl(142 72% 30% / 0.25); }
-.badge-muted   { background: hsl(210 16% 95%); color: hsl(215 16% 40%); border: 1px solid hsl(214 20% 88%); }
+.badge-danger  { background: hsl(4 86% 96%);    color: hsl(4 72% 40%);     border: 1px solid hsl(4 72% 40% / 0.25); }
+.badge-today   { background: hsl(210 100% 96%); color: hsl(210 100% 38%);  border: 1px solid hsl(210 100% 38% / 0.25); }
+.badge-warning { background: hsl(38 92% 95%);   color: hsl(38 70% 32%);    border: 1px solid hsl(38 92% 46% / 0.30); }
+.badge-success { background: hsl(142 60% 94%);  color: hsl(142 72% 28%);   border: 1px solid hsl(142 72% 30% / 0.25); }
+.badge-muted   { background: var(--muted-bg);    color: var(--muted-fg);    border: 1px solid var(--borda); }
+
+/* Dark mode — badges ficam com fundo transparente com borda */
+[data-theme="dark"] .badge-danger  { background: hsl(4 72% 20%);     color: hsl(4 86% 75%); }
+[data-theme="dark"] .badge-today   { background: hsl(210 100% 18%);  color: hsl(210 100% 75%); }
+[data-theme="dark"] .badge-warning { background: hsl(38 80% 18%);    color: hsl(38 92% 72%); }
+[data-theme="dark"] .badge-success { background: hsl(142 60% 12%);   color: hsl(142 72% 60%); }
 
 /* ── Form fields ─────────────────────────────────────────────────── */
 .field-input {
@@ -198,7 +230,7 @@ input, select, textarea, button { font-family: inherit; }
   padding-right: 0.875rem;
   border-radius: var(--radius-md);
   border: 1.5px solid var(--borda);
-  background: hsl(210 16% 97%);
+  background: var(--input-bg);
   color: var(--fg);
   font-size: 0.875rem;
   outline: none;
@@ -207,9 +239,9 @@ input, select, textarea, button { font-family: inherit; }
 .field-input:focus {
   border-color: hsl(160 84% 22%);
   box-shadow: 0 0 0 3px hsl(160 84% 22% / 0.10);
-  background: #fff;
+  background: var(--input-focus-bg);
 }
-.field-input::placeholder { color: hsl(215 16% 65%); }
+.field-input::placeholder { color: var(--fg-subtle); }
 
 /* ── Animations ──────────────────────────────────────────────────── */
 @keyframes oa-enter {
@@ -272,7 +304,7 @@ input, select, textarea, button { font-family: inherit; }
 .progress-track {
   height: 6px;
   border-radius: 9999px;
-  background: hsl(210 16% 92%);
+  background: var(--bg-dark);
   overflow: hidden;
 }
 .progress-fill {

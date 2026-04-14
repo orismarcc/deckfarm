@@ -35,6 +35,7 @@ export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplic
     observacoes: data.observacoes,
     clima: data.clima,
     temperatura: data.temperatura,
+    fotos: data.fotos,
     usuario_id: data.usuario_id,
     createdAt: now,
     updatedAt: now,

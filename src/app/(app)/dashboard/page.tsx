@@ -74,7 +74,7 @@ export default function DashboardPage() {
   }
 
   const hasData = (stats?.total_fazendas || 0) > 0
-  const firstName = user?.nome?.split(' ')[0]
+  const displayName = user?.apelido || user?.nome?.split(' ')[0]
   const hora = new Date().getHours()
   const greeting = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
 
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         <div>
           <p className="section-label mb-1">{greeting}</p>
           <h1 className="font-display text-[2rem] font-bold leading-tight" style={{ color: 'var(--fg)' }}>
-            {firstName}
+            {displayName}
           </h1>
           <p className="text-sm mt-1 capitalize" style={{ color: 'var(--fg-muted)' }}>
             {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}

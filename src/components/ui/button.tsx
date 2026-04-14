@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { ButtonHTMLAttributes, forwardRef } from 'react'
+import { ButtonHTMLAttributes, CSSProperties, forwardRef } from 'react'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline' | 'amber'
@@ -8,7 +8,24 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', loading, children, disabled, ...props }, ref) => {
+  ({ className, variant = 'primary', size = 'md', loading, children, disabled, style, ...props }, ref) => {
+    const variantStyle: CSSProperties = {}
+    if (variant === 'primary') {
+      variantStyle.background = 'hsl(160 84% 22%)'
+      variantStyle.color = '#ffffff'
+      variantStyle.boxShadow = '0 2px 8px rgba(10, 91, 50, 0.35)'
+    } else if (variant === 'secondary') {
+      variantStyle.background = 'var(--bg-dark)'
+      variantStyle.color = 'var(--fg)'
+      variantStyle.border = '1px solid var(--borda)'
+    } else if (variant === 'ghost') {
+      variantStyle.color = 'var(--fg-muted)'
+    } else if (variant === 'outline') {
+      variantStyle.border = '1px solid var(--borda)'
+      variantStyle.background = 'var(--bg-card)'
+      variantStyle.color = 'var(--fg)'
+    }
+
     return (
       <button
         ref={ref}
@@ -16,12 +33,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none',
           {
-            'bg-[--primary] text-white hover:brightness-110 focus-visible:ring-[--primary] shadow-sm active:scale-[0.98]': variant === 'primary',
-            'bg-[--bg-dark] text-[--fg] border border-[--borda] hover:bg-[--borda] focus-visible:ring-[--primary]': variant === 'secondary',
-            'text-[--fg-muted] hover:bg-[--bg-dark] hover:text-[--fg] focus-visible:ring-[--primary]': variant === 'ghost',
+            'hover:brightness-110 active:scale-[0.98]': variant === 'primary',
             'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-sm': variant === 'danger',
-            'border border-[--borda] bg-white text-[--fg] hover:bg-[--bg] hover:border-[--primary] hover:text-[--primary] focus-visible:ring-[--primary]': variant === 'outline',
             'border border-amber-600/50 text-amber-700 bg-amber-50 hover:bg-amber-100 focus-visible:ring-amber-500': variant === 'amber',
+            'hover:opacity-80': variant === 'secondary' || variant === 'ghost' || variant === 'outline',
           },
           {
             'h-7 px-3 text-xs rounded-md': size === 'sm',
@@ -31,6 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           },
           className
         )}
+        style={{ ...variantStyle, ...style }}
         {...props}
       >
         {loading && (

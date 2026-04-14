@@ -1,9 +1,23 @@
 import { SignJWT, jwtVerify } from 'jose'
 import type { User } from '@/types'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'deckfarm-secret-key-change-in-production'
-)
+function resolveJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[auth] JWT_SECRET is required in production. Set it as an environment variable.')
+    }
+    // Development-only fallback — clearly labelled so it's never accidentally used in prod
+    console.warn('[auth] JWT_SECRET not configured — using dev fallback. Set JWT_SECRET in .env.local')
+    return new TextEncoder().encode('__dev_only_fallback__set_JWT_SECRET_in_env__')
+  }
+  if (secret.length < 32) {
+    throw new Error('[auth] JWT_SECRET must be at least 32 characters long.')
+  }
+  return new TextEncoder().encode(secret)
+}
+
+const JWT_SECRET = resolveJwtSecret()
 
 export async function signToken(payload: Omit<User, 'senha'>): Promise<string> {
   return new SignJWT({ ...payload })

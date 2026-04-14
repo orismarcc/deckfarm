@@ -20,12 +20,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={taId}
           className={cn(
-            'w-full rounded-xl border bg-white text-sm text-[--fg] transition-all duration-150 resize-none',
+            'w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 resize-none',
             'px-3 py-2.5 placeholder:text-[--fg-subtle]',
             'focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary]',
             error ? 'border-red-400' : 'border-[--borda] hover:border-[--fg-subtle]/50',
             className
           )}
+          style={{ background: 'var(--input-bg)', ...props.style }}
           rows={3}
           {...props}
         />

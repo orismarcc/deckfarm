@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { culturaLabel, culturaIcon } from '@/lib/utils'
 import type { Talhao, Fazenda, Produto, Aplicacao } from '@/types'
+import { PhotoPicker } from '@/components/ui/photo-picker'
 import { ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar } from 'lucide-react'
 import Link from 'next/link'
 
@@ -33,6 +34,7 @@ export default function TalhaoPage() {
     clima: '',
     temperatura: '',
   })
+  const [fotos, setFotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -73,10 +75,12 @@ export default function TalhaoPage() {
         observacoes: form.observacoes,
         clima: form.clima,
         temperatura: form.temperatura ? Number(form.temperatura) : undefined,
+        fotos: fotos.length > 0 ? fotos : undefined,
         usuario_id: user.id,
       })
       await loadData()
       setModalOpen(false)
+      setFotos([])
       setForm({
         produto_id: '', data_aplicacao: new Date().toISOString().split('T')[0],
         dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '',
@@ -228,7 +232,20 @@ export default function TalhaoPage() {
       </div>
 
       {/* Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Registrar Aplicação" size="lg">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Registrar Aplicação"
+        size="lg"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setModalOpen(false)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleSaveAplicacao} loading={loading} disabled={!form.produto_id} className="flex-1">
+              Registrar
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <Select
             label="Produto"
@@ -300,12 +317,12 @@ export default function TalhaoPage() {
             onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
             placeholder="Anotações sobre a aplicação..."
           />
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={() => setModalOpen(false)} className="flex-1">Cancelar</Button>
-            <Button onClick={handleSaveAplicacao} loading={loading} disabled={!form.produto_id} className="flex-1">
-              Registrar
-            </Button>
-          </div>
+          <PhotoPicker
+            label="Fotos da aplicação"
+            photos={fotos}
+            onChange={setFotos}
+            maxPhotos={4}
+          />
         </div>
       </Modal>
     </div>

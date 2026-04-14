@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
-import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout } from 'lucide-react'
+import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout, Settings } from 'lucide-react'
 
 const nav = [
   { href: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',   sub: 'Visão geral' },
@@ -22,7 +22,7 @@ export function Sidebar() {
   const unread = notificacoes.filter(n => !n.lida).length
 
   return (
-    <aside className="sidebar grain hidden md:flex flex-col w-[260px] min-h-screen flex-shrink-0 relative overflow-hidden">
+    <aside className="sidebar grain hidden md:flex flex-col w-[260px] h-full flex-shrink-0 relative overflow-hidden">
       {/* Decorative organic circles */}
       <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-white/[0.03] pointer-events-none" />
       <div className="absolute top-32 -left-10 w-32 h-32 rounded-full bg-white/[0.02] pointer-events-none" />
@@ -118,20 +118,24 @@ export function Sidebar() {
       </div>
 
       {/* User footer */}
-      <div className="relative z-10 px-4 py-4 border-t border-white/5 flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/25 flex items-center justify-center text-emerald-300 text-sm font-bold flex-shrink-0 shadow-[0_0_10px_rgba(52,211,153,0.1)]">
-          {user?.nome?.[0]?.toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[12px] font-semibold text-white/80 truncate">{user?.nome}</div>
-          <div className="text-[10px] text-white/25 truncate">{user?.email}</div>
-        </div>
+      <div className="relative z-10 px-4 py-4 border-t border-white/5">
+        <Link href="/perfil" className="flex items-center gap-2.5 group mb-2.5 rounded-xl px-1 py-1 transition-colors hover:bg-white/5">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/25 flex items-center justify-center text-emerald-300 text-sm font-bold flex-shrink-0 shadow-[0_0_10px_rgba(52,211,153,0.1)]">
+            {user?.nome?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] font-semibold text-white/80 truncate">{user?.apelido || user?.nome}</div>
+            <div className="text-[10px] text-white/25 truncate">{user?.email}</div>
+          </div>
+          <Settings className="w-3.5 h-3.5 text-white/25 group-hover:text-white/50 transition-colors flex-shrink-0" />
+        </Link>
         <button
           onClick={logout}
-          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors group"
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/8 transition-colors group text-left"
           title="Sair"
         >
-          <LogOut className="w-3.5 h-3.5 text-white/30 group-hover:text-white/60 transition-colors" />
+          <LogOut className="w-3.5 h-3.5 text-white/25 group-hover:text-red-400 transition-colors flex-shrink-0" />
+          <span className="text-[11px] text-white/25 group-hover:text-white/50 transition-colors">Sair da conta</span>
         </button>
       </div>
     </aside>

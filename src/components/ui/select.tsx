@@ -24,12 +24,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             className={cn(
-              'h-10 w-full rounded-xl border bg-white text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3',
+              'h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3',
               'focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary]',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               error ? 'border-red-400' : 'border-[--borda] hover:border-[--fg-subtle]/50',
               className
             )}
+            style={{ background: 'var(--input-bg)', ...props.style }}
             {...props}
           >
             {placeholder && <option value="">{placeholder}</option>}
