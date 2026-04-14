@@ -25,6 +25,7 @@ export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplic
     id: uuidv4(),
     talhao_id: data.talhao_id,
     produto_id: data.produto_id,
+    tipo: data.tipo,
     data_aplicacao: data.data_aplicacao,
     proxima_aplicacao: proxima_str,
     status: calcularStatus(proxima_str),

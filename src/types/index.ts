@@ -43,6 +43,10 @@ export interface Talhao {
   coordenadas?: string // GeoJSON for map support
   descricao?: string
   foto?: string // base64
+  // Gestão de plantio
+  data_plantio?: string          // ISO date
+  data_colheita_prevista?: string // ISO date (calculada ou manual)
+  data_colheita_real?: string    // ISO date
   createdAt: string
   updatedAt: string
   _syncStatus?: 'synced' | 'pending' | 'conflict'
@@ -113,6 +117,7 @@ export interface Aplicacao {
   talhao_id: string
   produto_id: string
   safra_id?: string
+  tipo?: 'realizada' | 'planejada' // planejada = auto-agendada, realizada = concluída
   data_aplicacao: string
   proxima_aplicacao: string
   status: AplicacaoStatus

@@ -11,10 +11,9 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { PhotoPicker } from '@/components/ui/photo-picker'
 import { WeatherWidget } from '@/components/weather/weather-widget'
 import { MembrosSection } from '@/components/fazenda/membros-section'
-import { SafrasSection } from '@/components/fazenda/safras-section'
 import { gerarId, culturaLabel, culturaIcon, produtoTipoLabel, produtoTipoColor, formatDate } from '@/lib/utils'
 import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo } from '@/types'
-import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, Wheat, MapPin as MapPinIcon, Cloud } from 'lucide-react'
+import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud } from 'lucide-react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 
@@ -41,7 +40,7 @@ const tiposProduto: { value: ProdutoTipo; label: string }[] = [
   { value: 'inseticida', label: 'Inseticida' },
 ]
 
-type Tab = 'talhoes' | 'produtos' | 'safras' | 'equipe' | 'clima'
+type Tab = 'talhoes' | 'produtos' | 'equipe' | 'clima'
 
 export default function FazendaDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -175,11 +174,10 @@ export default function FazendaDetailPage() {
   )
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'talhoes', label: 'Talhões',   icon: <Leaf size={14} />,        count: talhoes.length },
-    { key: 'produtos', label: 'Produtos',  icon: <Package size={14} />,     count: produtos.length },
-    { key: 'safras',  label: 'Safras',    icon: <Wheat size={14} /> },
-    { key: 'clima',   label: 'Clima',     icon: <Cloud size={14} /> },
-    { key: 'equipe',  label: 'Equipe',    icon: <Users size={14} /> },
+    { key: 'talhoes', label: 'Talhões',  icon: <Leaf size={14} />,    count: talhoes.length },
+    { key: 'produtos', label: 'Produtos', icon: <Package size={14} />, count: produtos.length },
+    { key: 'clima',   label: 'Clima',    icon: <Cloud size={14} /> },
+    { key: 'equipe',  label: 'Equipe',   icon: <Users size={14} /> },
   ]
 
   return (
@@ -303,7 +301,7 @@ export default function FazendaDetailPage() {
                     style={{ borderTop: '1px solid var(--borda)', color: 'hsl(160 84% 22%)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--verde-50)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    Ver histórico <ChevronRight className="w-4 h-4" />
+                    Gerenciar talhão <ChevronRight className="w-4 h-4" />
                   </Link>
                 </div>
               ))}
@@ -362,13 +360,6 @@ export default function FazendaDetailPage() {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── SAFRAS ── */}
-      {tab === 'safras' && (
-        <div className="animate-enter animate-enter-3">
-          <SafrasSection fazendaId={id} />
         </div>
       )}
 

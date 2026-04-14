@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
 import { cn, formatDate } from '@/lib/utils'
+import { gerarAlertasAutomaticos } from '@/lib/db/agronomo'
 import type { Notificacao } from '@/types'
 import { Bell, BellOff, CheckCheck, AlertTriangle, Clock, Calendar, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,8 @@ export default function AlertasPage() {
     if (!user) return
     setLoading(true)
     try {
+      // Auto-generate alerts from all data sources before loading
+      await gerarAlertasAutomaticos(user.id)
       const db = getDB()
       const today = new Date().toISOString().split('T')[0]
       const nots = await db.notificacoes

@@ -34,6 +34,18 @@ export class DeckFarmDB extends Dexie {
       safras: 'id, fazenda_id, status, ano_inicio',
       fazendaMembros: 'id, fazenda_id, usuario_id, status',
     })
+    // v3: data_plantio on talhoes; tipo on aplicacoes
+    this.version(3).stores({
+      users: 'id, email',
+      fazendas: 'id, usuario_id, nome',
+      talhoes: 'id, fazenda_id, nome, cultura, data_plantio',
+      produtos: 'id, fazenda_id, nome, tipo',
+      aplicacoes: 'id, talhao_id, produto_id, usuario_id, data_aplicacao, proxima_aplicacao, status, safra_id, tipo',
+      notificacoes: 'id, usuario_id, lida, data_referencia, tipo',
+      syncQueue: 'id, entity, action, timestamp',
+      safras: 'id, fazenda_id, status, ano_inicio',
+      fazendaMembros: 'id, fazenda_id, usuario_id, status',
+    })
   }
 }
 
