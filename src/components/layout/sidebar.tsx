@@ -4,15 +4,17 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
-import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout, Settings } from 'lucide-react'
+import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout, Settings, ClipboardList, Droplets } from 'lucide-react'
 
 const nav = [
-  { href: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',   sub: 'Visão geral' },
-  { href: '/fazendas',   icon: MapPin,           label: 'Fazendas',    sub: 'Suas propriedades' },
-  { href: '/talhoes',    icon: Leaf,             label: 'Talhões',     sub: 'Gestão de áreas' },
-  { href: '/aplicacoes', icon: FlaskConical,     label: 'Aplicações',  sub: 'Histórico' },
-  { href: '/cronograma', icon: CalendarDays,     label: 'Cronograma',  sub: 'Planejamento' },
-  { href: '/alertas',    icon: Bell,             label: 'Alertas',     sub: 'Notificações' },
+  { href: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',      sub: 'Visão geral' },
+  { href: '/fazendas',       icon: MapPin,           label: 'Fazendas',       sub: 'Suas propriedades' },
+  { href: '/talhoes',        icon: Leaf,             label: 'Talhões',        sub: 'Gestão de áreas' },
+  { href: '/aplicacoes',     icon: FlaskConical,     label: 'Aplicações',     sub: 'Histórico' },
+  { href: '/cronograma',     icon: CalendarDays,     label: 'Cronograma',     sub: 'Planejamento' },
+  { href: '/recomendacoes',  icon: ClipboardList,    label: 'Recomendações',  sub: 'Técnico agrônomo' },
+  { href: '/calda',          icon: Droplets,         label: 'Calda',          sub: 'Cálculo de volume' },
+  { href: '/alertas',        icon: Bell,             label: 'Alertas',        sub: 'Notificações' },
 ]
 
 export function Sidebar() {

@@ -12,7 +12,7 @@ import { atualizarStatuses } from '@/lib/db/aplicacoes'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, _hasHydrated } = useAuthStore()
   const { setOnline } = useAppStore()
   const { theme } = useThemeStore()
 
@@ -20,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => { applyTheme(theme) }, [theme])
 
   useEffect(() => {
+    if (!_hasHydrated) return
     if (!isAuthenticated) { router.push('/login'); return }
 
     setupSyncListeners()
@@ -36,7 +37,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [isAuthenticated, router, setOnline])
+  }, [isAuthenticated, _hasHydrated, router, setOnline])
+
+  if (!_hasHydrated) return (
+    <div className="flex h-screen items-center justify-center" style={{ background: 'var(--bg)' }}>
+      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--verde-500)', borderTopColor: 'transparent' }} />
+    </div>
+  )
 
   if (!isAuthenticated) return null
 

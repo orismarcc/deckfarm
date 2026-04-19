@@ -97,8 +97,7 @@ export async function criarOuAtualizarSafra(talhao: Talhao): Promise<void> {
 
 /**
  * Remove aplicações planejadas antigas e cria novas a partir do plantio.
- * Cada produto da fazenda gera aplicações em intervalos de prazo_medio_aplicacao
- * ao longo do ciclo da cultura.
+ * Prioridade: recomendações do agrônomo. Se não houver, usa intervalos padrão dos produtos.
  */
 export async function agendarAplicacoesPorPlantio(
   talhao: Talhao,
@@ -114,42 +113,77 @@ export async function agendarAplicacoesPorPlantio(
     ? parseISO(talhao.data_colheita_prevista)
     : addDays(dataPlantio, ciclo)
 
-  // Remove aplicações planejadas existentes para este talhão
+  // Remove aplicações planejadas existentes (padrão) para este talhão
+  // Não remove as que foram geradas por recomendação (têm 'Recomendação técnica' em observacoes)
   const existentes = await db.aplicacoes
     .where('talhao_id').equals(talhao.id)
-    .and(a => a.tipo === 'planejada')
+    .and(a => a.tipo === 'planejada' && !a.observacoes?.startsWith('Recomendação técnica'))
     .toArray()
   await Promise.all(existentes.map(a => db.aplicacoes.delete(a.id)))
+
+  // Verifica se há recomendações do agrônomo para este talhão
+  const recomendacaoApps = await db.recomendacaoAplicacoes
+    .where('talhao_id').equals(talhao.id)
+    .toArray()
 
   const now = new Date().toISOString()
   const novas: Aplicacao[] = []
 
-  for (const produto of produtos) {
-    const intervalo = produto.prazo_medio_aplicacao || 21
-    let dataAplicacao = addDays(dataPlantio, intervalo)
+  if (recomendacaoApps.length > 0) {
+    // Usa datas da recomendação do agrônomo — não gera pelo intervalo padrão
+    // As aplicações das recomendações já foram criadas pelo módulo de recomendações.
+    // Apenas cria o agendamento padrão para produtos SEM recomendação no período.
+    const produtosComRec = new Set(recomendacaoApps.map(r => r.produto_id))
 
-    while (dataAplicacao <= dataColheita) {
-      const dataStr = format(dataAplicacao, 'yyyy-MM-dd')
-      const proximaStr = format(addDays(dataAplicacao, intervalo), 'yyyy-MM-dd')
+    for (const produto of produtos) {
+      if (produtosComRec.has(produto.id)) continue // agrônomo cobriu este produto
 
-      novas.push({
-        id: uuidv4(),
-        talhao_id: talhao.id,
-        produto_id: produto.id,
-        tipo: 'planejada',
-        data_aplicacao: dataStr,
-        proxima_aplicacao: proximaStr,
-        status: calcStatus(dataStr),
-        usuario_id,
-        createdAt: now,
-        updatedAt: now,
-        _syncStatus: 'pending',
-      })
-      dataAplicacao = addDays(dataAplicacao, intervalo)
+      const intervalo = produto.prazo_medio_aplicacao || 21
+      let dataAplicacao = addDays(dataPlantio, intervalo)
+      while (dataAplicacao <= dataColheita) {
+        const dataStr = format(dataAplicacao, 'yyyy-MM-dd')
+        novas.push({
+          id: uuidv4(),
+          talhao_id: talhao.id,
+          produto_id: produto.id,
+          tipo: 'planejada',
+          data_aplicacao: dataStr,
+          proxima_aplicacao: format(addDays(dataAplicacao, intervalo), 'yyyy-MM-dd'),
+          status: calcStatus(dataStr),
+          usuario_id,
+          createdAt: now,
+          updatedAt: now,
+          _syncStatus: 'pending',
+        })
+        dataAplicacao = addDays(dataAplicacao, intervalo)
+      }
+    }
+  } else {
+    // Sem recomendação: usa intervalos padrão para todos os produtos
+    for (const produto of produtos) {
+      const intervalo = produto.prazo_medio_aplicacao || 21
+      let dataAplicacao = addDays(dataPlantio, intervalo)
+      while (dataAplicacao <= dataColheita) {
+        const dataStr = format(dataAplicacao, 'yyyy-MM-dd')
+        novas.push({
+          id: uuidv4(),
+          talhao_id: talhao.id,
+          produto_id: produto.id,
+          tipo: 'planejada',
+          data_aplicacao: dataStr,
+          proxima_aplicacao: format(addDays(dataAplicacao, intervalo), 'yyyy-MM-dd'),
+          status: calcStatus(dataStr),
+          usuario_id,
+          createdAt: now,
+          updatedAt: now,
+          _syncStatus: 'pending',
+        })
+        dataAplicacao = addDays(dataAplicacao, intervalo)
+      }
     }
   }
 
-  await db.aplicacoes.bulkAdd(novas)
+  if (novas.length > 0) await db.aplicacoes.bulkAdd(novas)
 }
 
 // ── Geração de alertas completos ─────────────────────────────────────────────

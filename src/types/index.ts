@@ -6,6 +6,7 @@ export type NotificacaoTipo = 'semana' | 'tres_dias' | 'amanha' | 'hoje' | 'atra
 export type UserRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
 export type SafraStatus = 'planejada' | 'em_andamento' | 'finalizada'
 export type MembroRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
+export type StatusSemeadura = 'nao_iniciada' | 'em_andamento' | 'finalizada'
 
 export interface User {
   id: string
@@ -47,9 +48,72 @@ export interface Talhao {
   data_plantio?: string          // ISO date
   data_colheita_prevista?: string // ISO date (calculada ou manual)
   data_colheita_real?: string    // ISO date
+  // Semeadura
+  status_semeadura?: StatusSemeadura
+  area_semeada?: number          // ha já semeados (≤ area)
   createdAt: string
   updatedAt: string
   _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface Pluviometro {
+  id: string
+  nome: string
+  fazenda_id: string
+  talhao_id?: string  // optional: per-field pluviometer
+  latitude?: number
+  longitude?: number
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface RegistroChuva {
+  id: string
+  pluviometro_id: string
+  fazenda_id: string
+  data: string           // ISO date yyyy-MM-dd
+  volume_mm: number
+  observacoes?: string
+  createdAt: string
+}
+
+export interface Anotacao {
+  id: string
+  talhao_id: string
+  fazenda_id: string
+  usuario_id: string
+  texto: string
+  fotos?: string[]       // base64
+  data: string           // ISO date
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface Recomendacao {
+  id: string
+  fazenda_id: string
+  usuario_id: string
+  nome: string
+  data_inicio: string
+  data_fim: string
+  observacoes?: string
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
+export interface RecomendacaoAplicacao {
+  id: string
+  recomendacao_id: string
+  talhao_id: string
+  produto_id: string
+  data_aplicacao: string
+  dose?: number
+  unidade_dose?: string
+  observacoes?: string
+  createdAt: string
 }
 
 export interface Safra {
