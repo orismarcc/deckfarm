@@ -1,9 +1,9 @@
 /**
- * Next.js Edge Middleware
+ * Next.js Proxy (formerly middleware)
  * Runs before every matched request.
  * - Blocks obviously malicious URL patterns (injection / traversal)
- * - Rejects oversized Content-Type payloads early
- * - Enforces method allow-list per route group
+ * - Enforces admin endpoint access control
+ * - Adds security headers to every response
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,7 +20,7 @@ const BLOCKED_URL_PATTERNS = [
   /\x00/,               // null byte injection
 ]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const fullPath = pathname + search
 
