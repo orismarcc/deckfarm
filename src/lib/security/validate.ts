@@ -14,8 +14,11 @@ export function isValidEmail(email: unknown): boolean {
 
 export function isValidPassword(password: unknown): { valid: boolean; reason?: string } {
   if (typeof password !== 'string') return { valid: false, reason: 'Senha inválida' }
-  if (password.length < 8) return { valid: false, reason: 'Senha deve ter no mínimo 8 caracteres' }
+  if (password.length < 10) return { valid: false, reason: 'Senha deve ter no mínimo 10 caracteres' }
   if (password.length > 128) return { valid: false, reason: 'Senha muito longa' }
+  // Require at least one letter and one digit
+  if (!/[a-zA-Z]/.test(password)) return { valid: false, reason: 'Senha deve conter ao menos uma letra' }
+  if (!/[0-9]/.test(password)) return { valid: false, reason: 'Senha deve conter ao menos um número' }
   return { valid: true }
 }
 

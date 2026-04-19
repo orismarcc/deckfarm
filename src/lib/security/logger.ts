@@ -9,7 +9,8 @@ type LogLevel = 'info' | 'warn' | 'error'
 const SENSITIVE_KEYS = [
   'senha', 'password', 'token', 'secret', 'key',
   'authorization', 'hash', 'credential', 'api_key',
-  'database_url', 'jwt', 'bearer',
+  'database_url', 'jwt', 'bearer', 'service_role',
+  'private', 'cookie', 'session', 'refresh', 'access_token',
 ]
 
 function redact(obj: Record<string, unknown>): Record<string, unknown> {

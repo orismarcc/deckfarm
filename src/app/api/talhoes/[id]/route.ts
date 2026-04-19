@@ -10,6 +10,22 @@ async function getUser(request: NextRequest) {
   return verifyToken(token)
 }
 
+/** Verifica que o talhão pertence ao usuário autenticado (via fazenda). */
+async function assertOwnership(
+  supabase: ReturnType<typeof createServerClient>,
+  talhaoId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!supabase) return false
+  const { data } = await supabase
+    .from('talhoes')
+    .select('id, fazendas!inner(usuario_id)')
+    .eq('id', talhaoId)
+    .eq('fazendas.usuario_id', userId)
+    .maybeSingle()
+  return !!data
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,8 +36,16 @@ export async function PUT(
   const user = await getUser(request)
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const body = await request.json()
   const supabase = createServerClient()
+
+  // Ownership guard: user must own the fazenda containing this talhão
+  const owns = await assertOwnership(supabase, id, user.id)
+  if (!owns) {
+    logger.warn('talhao_unauthorized_update', { userId: user.id, talhaoId: id })
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
+  }
+
+  const body = await request.json()
   if (!supabase) return NextResponse.json({ talhao: body })
 
   const { data, error } = await supabase
@@ -48,6 +72,14 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const supabase = createServerClient()
+
+  // Ownership guard
+  const owns = await assertOwnership(supabase, id, user.id)
+  if (!owns) {
+    logger.warn('talhao_unauthorized_delete', { userId: user.id, talhaoId: id })
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
+  }
+
   if (!supabase) return NextResponse.json({ ok: true })
 
   const { error } = await supabase

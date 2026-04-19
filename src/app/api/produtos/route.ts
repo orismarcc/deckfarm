@@ -25,8 +25,13 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient()
   if (!supabase) return NextResponse.json({ produtos: [] })
 
-  let query = supabase.from('produtos').select('*')
-  if (fazenda_id) query = query.eq('fazenda_id', fazenda_id)
+  // Always scope to the authenticated user's fazendas to prevent enumeration
+  let query = supabase
+    .from('produtos')
+    .select('*, fazendas!inner(usuario_id)')
+    .eq('fazendas.usuario_id', user.id)
+
+  if (fazenda_id) query = query.eq('fazenda_id', fazenda_id) as typeof query
 
   const { data, error } = await query.order('nome')
 

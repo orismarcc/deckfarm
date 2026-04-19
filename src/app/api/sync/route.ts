@@ -15,6 +15,45 @@ const TABLE_MAP: Record<string, string> = {
 const ALLOWED_ACTIONS = ['upsert', 'delete'] as const
 type SyncAction = typeof ALLOWED_ACTIONS[number]
 
+/**
+ * Per-entity field allowlists.
+ * Only these columns are ever written to Supabase — prevents mass-assignment
+ * attacks where a client sends extra fields (e.g. usuario_id on talhões,
+ * internal admin flags, etc.).
+ */
+const ALLOWED_FIELDS: Record<string, Set<string>> = {
+  fazendas: new Set([
+    'id', 'nome', 'localizacao', 'nome_produtor', 'area_total',
+    'latitude', 'longitude', 'usuario_id', 'createdAt', 'updatedAt',
+  ]),
+  talhoes: new Set([
+    'id', 'nome', 'area', 'cultura', 'fazenda_id',
+    'latitude', 'longitude', 'descricao', 'foto',
+    'data_plantio', 'data_colheita_prevista', 'data_colheita_real',
+    'status_semeadura', 'area_semeada', 'createdAt', 'updatedAt',
+  ]),
+  produtos: new Set([
+    'id', 'nome', 'tipo', 'prazo_medio_aplicacao', 'fabricante',
+    'registro_mapa', 'unidade', 'quantidade_disponivel', 'unidade_quantidade',
+    'fazenda_id', 'createdAt', 'updatedAt',
+  ]),
+  aplicacoes: new Set([
+    'id', 'talhao_id', 'produto_id', 'safra_id', 'tipo',
+    'data_aplicacao', 'proxima_aplicacao', 'status',
+    'dose', 'unidade_dose', 'area_aplicada', 'responsavel',
+    'observacoes', 'clima', 'temperatura', 'fotos',
+    'usuario_id', 'createdAt', 'updatedAt',
+  ]),
+}
+
+function pickAllowedFields(data: Record<string, unknown>, table: string): Record<string, unknown> {
+  const allowed = ALLOWED_FIELDS[table]
+  if (!allowed) return {}
+  return Object.fromEntries(
+    Object.entries(data).filter(([k]) => allowed.has(k))
+  )
+}
+
 export async function POST(request: NextRequest) {
   const token = getTokenFromRequest(request)
   if (!token) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -42,7 +81,7 @@ export async function POST(request: NextRequest) {
 
   // Validate data.id
   const dataId = item.data?.id
-  if (!dataId || !isValidUUID(dataId)) {
+  if (!dataId || !isValidUUID(dataId as string)) {
     return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
   }
 
@@ -56,13 +95,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao sincronizar exclusão' }, { status: 500 })
     }
   } else {
-    // Strip client-only fields that don't exist in the DB
-    const { _syncStatus, talhao, produto, aplicacao: _ap, ...rest } = item.data as Record<string, unknown> & { _syncStatus?: unknown; talhao?: unknown; produto?: unknown; aplicacao?: unknown }
-    const payload = { ...rest }
-    // Force usuario_id to match the authenticated user for owned tables
+    // Apply field allowlist (prevents mass-assignment) + strip client-only fields
+    const payload = pickAllowedFields(item.data ?? {}, table)
+
+    // Force usuario_id to the authenticated user for owned tables — client cannot override
     if (table === 'fazendas' || table === 'aplicacoes') {
       payload.usuario_id = user.id
     }
+
+    // id must always be present
+    payload.id = dataId
+
     const { error } = await supabase.from(table).upsert(payload)
     if (error) {
       logger.error('sync_upsert_failed', { userId: user.id, table, id: dataId })

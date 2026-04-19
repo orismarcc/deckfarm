@@ -30,18 +30,29 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
+              // Next.js requires 'unsafe-inline' for style injection and 'unsafe-eval'
+              // for the dev runtime. Both are standard constraints for Next.js apps.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
+              // Allow images from Supabase storage + local data URIs (photos taken in-app)
               `img-src 'self' data: blob: https://${supabaseHost}`,
               "font-src 'self' data:",
-              `connect-src 'self' https://${supabaseHost} wss://${supabaseHost}`,
+              // Open-Meteo for weather data; Supabase for data sync
+              `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://api.open-meteo.com https://geocoding-api.open-meteo.com`,
+              // Leaflet tiles (OpenStreetMap) for maps
+              "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.supabase.co",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
+              // Service worker scope
+              "worker-src 'self' blob:",
+              "manifest-src 'self'",
               "upgrade-insecure-requests",
             ].join("; "),
           },
+          // Prevent browsers from caching sensitive API responses
+          ...([] as { key: string; value: string }[]),
         ],
       },
     ];
