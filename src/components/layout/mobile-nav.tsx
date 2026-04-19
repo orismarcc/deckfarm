@@ -3,15 +3,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAppStore } from '@/store/app'
 import { useAuthStore } from '@/store/auth'
-import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, Bell, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, Bell } from 'lucide-react'
 
+// Bottom nav mantém apenas 5 ações principais — acesso completo pelo menu ☰
 const nav = [
-  { href: '/dashboard',     icon: LayoutDashboard, label: 'Início' },
-  { href: '/fazendas',      icon: MapPin,           label: 'Fazendas' },
-  { href: '/aplicacoes',    icon: FlaskConical,     label: 'Aplicar' },
-  { href: '/cronograma',    icon: CalendarDays,     label: 'Agenda' },
-  { href: '/recomendacoes', icon: ClipboardList,    label: 'Rec.' },
-  { href: '/alertas',       icon: Bell,             label: 'Alertas' },
+  { href: '/dashboard',  icon: LayoutDashboard, label: 'Início' },
+  { href: '/fazendas',   icon: MapPin,           label: 'Fazendas' },
+  { href: '/aplicacoes', icon: FlaskConical,     label: 'Aplicar' },
+  { href: '/cronograma', icon: CalendarDays,     label: 'Agenda' },
+  { href: '/alertas',    icon: Bell,             label: 'Alertas' },
 ]
 
 export function MobileNav() {
