@@ -29,8 +29,9 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
     if (!vv) return
     function adjust() {
       if (!panelRef.current) return
-      const available = vv!.height
-      panelRef.current.style.maxHeight = `${available * 0.92}px`
+      // Leave at least 48px from top so header is always reachable
+      const available = Math.min(vv!.height - 12, window.innerHeight * 0.88)
+      panelRef.current.style.maxHeight = `${available}px`
     }
     vv.addEventListener('resize', adjust)
     adjust()
@@ -40,21 +41,23 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={panelRef}
         className={cn(
           'relative flex flex-col w-full z-10',
           'rounded-2xl shadow-xl',
-          'max-h-[88vh]',
           {
             'max-w-sm':  size === 'sm',
             'max-w-lg':  size === 'md',
             'max-w-2xl': size === 'lg',
           }
         )}
-        style={{ background: 'var(--bg-card)' }}
+        style={{
+          background: 'var(--bg-card)',
+          maxHeight: 'min(88vh, calc(100dvh - 1.5rem))',
+        }}
       >
         {/* Header — sempre visível */}
         <div

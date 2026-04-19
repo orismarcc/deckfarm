@@ -20,7 +20,8 @@ export default function FazendasPage() {
   const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '' })
   const [loading, setLoading] = useState(false)
   const [busca, setBusca] = useState('')
-  const [weatherFazenda, setWeatherFazenda] = useState<string | null>(null)
+  // weather sempre visível por card; botão permite ocultar se desejar
+  const [weatherOculta, setWeatherOculta] = useState<Set<string>>(new Set())
 
   const loadData = useCallback(async () => {
     if (!user) return
@@ -136,7 +137,7 @@ export default function FazendasPage() {
             const totalArea = talhoesF.reduce((acc, t) => acc + (t.area || 0), 0)
             const culturas = [...new Set(talhoesF.map(t => t.cultura))]
             const comPlantio = talhoesF.filter(t => t.data_plantio).length
-            const showWeather = weatherFazenda === f.id
+            const showWeather = !weatherOculta.has(f.id) && (!!f.latitude || !!f.localizacao)
 
             return (
               <div key={f.id} className="card animate-enter flex flex-col" style={{ animationDelay: `${(i + 2) * 60}ms` }}>
@@ -158,10 +159,17 @@ export default function FazendasPage() {
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                       {(f.latitude || f.localizacao) && (
                         <button
-                          onClick={() => setWeatherFazenda(showWeather ? null : f.id)}
+                          onClick={() => setWeatherOculta(prev => {
+                            const next = new Set(prev)
+                            next.has(f.id) ? next.delete(f.id) : next.add(f.id)
+                            return next
+                          })}
                           className="p-1.5 rounded-lg transition"
-                          style={{ color: showWeather ? 'hsl(210 90% 45%)' : 'var(--fg-subtle)', background: showWeather ? 'hsl(210 90% 96%)' : 'transparent' }}
-                          title="Previsão do tempo"
+                          style={{
+                            color: showWeather ? 'hsl(210 90% 45%)' : 'var(--fg-subtle)',
+                            background: showWeather ? 'hsl(210 90% 96%)' : 'transparent',
+                          }}
+                          title={showWeather ? 'Ocultar previsão' : 'Mostrar previsão'}
                         >
                           <Cloud size={13} />
                         </button>

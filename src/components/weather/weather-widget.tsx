@@ -80,13 +80,19 @@ export function WeatherWidget({ latitude, longitude, localizacao, compact = fals
     if (latitude && longitude) {
       fetchWeather(latitude, longitude)
     } else if (localizacao) {
-      fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(localizacao + ', Brasil')}&format=json&limit=1`)
-        .then(r => r.json())
+      fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(localizacao + ', Brasil')}&format=json&limit=1&accept-language=pt-BR`,
+        { headers: { 'User-Agent': 'DeckFarm/1.0 (gestao-agricola)' } }
+      )
+        .then(r => { if (!r.ok) throw new Error(); return r.json() })
         .then(results => {
-          if (results.length > 0) fetchWeather(parseFloat(results[0].lat), parseFloat(results[0].lon))
-          else setError('Localização não encontrada')
+          if (results && results.length > 0) {
+            fetchWeather(parseFloat(results[0].lat), parseFloat(results[0].lon))
+          } else {
+            setError('Localização não encontrada — adicione lat/lng na fazenda')
+          }
         })
-        .catch(() => setError('Erro ao buscar localização'))
+        .catch(() => setError('Adicione latitude/longitude na fazenda para previsão precisa'))
     }
   }, [latitude, longitude, localizacao])
 
@@ -100,9 +106,9 @@ export function WeatherWidget({ latitude, longitude, localizacao, compact = fals
   )
 
   if (error) return (
-    <div className="rounded-xl p-3 flex items-center gap-2 text-sm"
-      style={{ background: 'hsl(4 80% 97%)', color: 'hsl(4 72% 45%)', border: '1px solid hsl(4 80% 88%)' }}>
-      <AlertTriangle size={14} /> {error}
+    <div className="rounded-xl p-3 flex items-start gap-2 text-xs"
+      style={{ background: 'hsl(38 90% 96%)', color: 'hsl(32 90% 35%)', border: '1px solid hsl(38 80% 88%)' }}>
+      <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" /> {error}
     </div>
   )
 
