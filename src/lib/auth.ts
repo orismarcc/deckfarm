@@ -17,19 +17,24 @@ function resolveJwtSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-const JWT_SECRET = resolveJwtSecret()
+// Lazily resolved so Next.js build-time module evaluation doesn't throw
+let _JWT_SECRET: Uint8Array | null = null
+function getJwtSecret(): Uint8Array {
+  if (!_JWT_SECRET) _JWT_SECRET = resolveJwtSecret()
+  return _JWT_SECRET
+}
 
 export async function signToken(payload: Omit<User, 'senha'>): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(JWT_SECRET)
+    .sign(getJwtSecret())
 }
 
 export async function verifyToken(token: string): Promise<Omit<User, 'senha'> | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, getJwtSecret())
     return payload as unknown as Omit<User, 'senha'>
   } catch {
     return null
