@@ -56,8 +56,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao sincronizar exclusão' }, { status: 500 })
     }
   } else {
+    // Strip client-only fields that don't exist in the DB
+    const { _syncStatus, talhao, produto, aplicacao: _ap, ...rest } = item.data as Record<string, unknown> & { _syncStatus?: unknown; talhao?: unknown; produto?: unknown; aplicacao?: unknown }
+    const payload = { ...rest }
     // Force usuario_id to match the authenticated user for owned tables
-    const payload = { ...item.data }
     if (table === 'fazendas' || table === 'aplicacoes') {
       payload.usuario_id = user.id
     }

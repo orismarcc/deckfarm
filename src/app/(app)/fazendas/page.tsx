@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { WeatherWidget } from '@/components/weather/weather-widget'
 import { gerarId, culturaIcon } from '@/lib/utils'
+import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import type { Fazenda, Talhao, Aplicacao } from '@/types'
 import { Plus, MapPin, Leaf, AlertTriangle, Clock, CheckCircle, Trash2, Edit3, ChevronRight, Search, Cloud } from 'lucide-react'
 import Link from 'next/link'
@@ -72,11 +73,14 @@ export default function FazendasPage() {
         const updated = { ...editando, ...base, updatedAt: now }
         await db.fazendas.put(updated)
         updateFazenda(editando.id, updated)
+        await enqueueSync('fazenda', 'upsert', updated as unknown as Record<string, unknown>)
       } else {
         const fazenda: Fazenda = { id: gerarId(), usuario_id: user.id, createdAt: now, updatedAt: now, ...base }
         await db.fazendas.add(fazenda)
         addFazenda(fazenda)
+        await enqueueSync('fazenda', 'upsert', fazenda as unknown as Record<string, unknown>)
       }
+      processSyncQueue()
       setModalOpen(false)
     } finally { setLoading(false) }
   }

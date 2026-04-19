@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/auth'
 import { getDB } from '@/lib/db'
 import { criarAplicacao } from '@/lib/db/aplicacoes'
 import { agendarAplicacoesPorPlantio, criarOuAtualizarSafra, CICLO_CULTURA } from '@/lib/db/agronomo'
+import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { culturaLabel, culturaIcon, gerarId } from '@/lib/utils'
-import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura } from '@/types'
+import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao } from '@/types'
 import { PhotoPicker } from '@/components/ui/photo-picker'
 import {
   ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar,
@@ -47,6 +48,60 @@ const STATUS_SEMEADURA_COLORS: Record<StatusSemeadura, { color: string; bg: stri
 
 const TODAY = new Date().toISOString().split('T')[0]
 
+// ── Notificações de semeadura e colheita ─────────────────────────────────────
+async function gerarNotificacoesSemeadura(talhao: Talhao, usuario_id: string): Promise<void> {
+  if (!talhao.data_plantio) return
+  const db = getDB()
+  const now = new Date().toISOString()
+
+  // Remove notificações antigas de plantio/colheita deste talhão que não sejam de aplicação
+  const antigas = await db.notificacoes
+    .where('talhao_id').equals(talhao.id)
+    .and(n => !n.aplicacao_id)
+    .toArray()
+  for (const n of antigas) await db.notificacoes.delete(n.id)
+
+  // Notificação para data de plantio
+  await db.notificacoes.add({
+    id: gerarId(),
+    tipo: 'hoje',
+    mensagem: `Plantio do talhão "${talhao.nome}" registrado para ${talhao.data_plantio}`,
+    data_referencia: talhao.data_plantio,
+    lida: false,
+    usuario_id,
+    talhao_id: talhao.id,
+    fazenda_id: talhao.fazenda_id,
+    createdAt: now,
+  })
+
+  // Notificação de colheita prevista (7 dias antes e 1 dia antes)
+  if (talhao.data_colheita_prevista) {
+    const colheita = parseISO(talhao.data_colheita_prevista)
+    await db.notificacoes.add({
+      id: gerarId(),
+      tipo: 'semana',
+      mensagem: `Colheita prevista para o talhão "${talhao.nome}" em uma semana`,
+      data_referencia: addDays(colheita, -7).toISOString().split('T')[0],
+      lida: false,
+      usuario_id,
+      talhao_id: talhao.id,
+      fazenda_id: talhao.fazenda_id,
+      createdAt: now,
+    })
+    await db.notificacoes.add({
+      id: gerarId(),
+      tipo: 'amanha',
+      mensagem: `Colheita do talhão "${talhao.nome}" prevista para amanhã`,
+      data_referencia: addDays(colheita, -1).toISOString().split('T')[0],
+      lida: false,
+      usuario_id,
+      talhao_id: talhao.id,
+      fazenda_id: talhao.fazenda_id,
+      createdAt: now,
+    })
+  }
+}
+
 export default function TalhaoPage() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuthStore()
@@ -68,6 +123,9 @@ export default function TalhaoPage() {
   // Aplicação modal
   const [modalOpen, setModalOpen] = useState(false)
   const [aplicacaoBase, setAplicacaoBase] = useState<Partial<Aplicacao> | null>(null)
+  const [modalMode, setModalMode] = useState<'produto' | 'recomendacao'>('produto')
+  const [recomendacoes, setRecomendacoes] = useState<Recomendacao[]>([])
+  const [selectedRecomendacaoId, setSelectedRecomendacaoId] = useState('')
   const [form, setForm] = useState({
     produto_id: '',
     data_aplicacao: TODAY,
@@ -114,6 +172,11 @@ export default function TalhaoPage() {
     ])
     setFazenda(faz || null)
     setProdutos(prods)
+    // Load recommendations for this fazenda
+    if (t.fazenda_id) {
+      const recs = await db.recomendacoes.where('fazenda_id').equals(t.fazenda_id).toArray()
+      setRecomendacoes(recs)
+    }
     const enriched = await Promise.all(apps.map(async a => {
       const prod = await db.produtos.get(a.produto_id)
       return { ...a, produto: prod }
@@ -180,11 +243,15 @@ export default function TalhaoPage() {
       }
       await db.talhoes.put(updated)
       setTalhao(updated)
+      // Sync talhão update to Supabase
+      await enqueueSync('talhao', 'upsert', updated as unknown as Record<string, unknown>)
+      processSyncQueue()
 
       const prods = await db.produtos.where('fazenda_id').equals(talhao.fazenda_id).toArray()
       await Promise.all([
         agendarAplicacoesPorPlantio(updated, prods, user.id),
         criarOuAtualizarSafra(updated),
+        gerarNotificacoesSemeadura(updated, user.id),
       ])
       await loadData()
       setPlantioModal(false)
@@ -194,6 +261,8 @@ export default function TalhaoPage() {
   // ── Aplicação ────────────────────────────────────────────────────────────
   function openAplicacaoModal(planejada?: Aplicacao) {
     setAplicacaoBase(planejada || null)
+    setModalMode('produto')
+    setSelectedRecomendacaoId('')
     setForm({
       produto_id: planejada?.produto_id || '',
       data_aplicacao: planejada?.data_aplicacao || TODAY,
@@ -208,6 +277,28 @@ export default function TalhaoPage() {
     setModalOpen(true)
   }
 
+  async function handleSelectRecomendacao(recId: string) {
+    setSelectedRecomendacaoId(recId)
+    if (!recId) return
+    // Pre-fill with the first RecomendacaoAplicacao for this talhão
+    const db = getDB()
+    const recApps = await db.recomendacaoAplicacoes
+      .where('recomendacao_id').equals(recId)
+      .and(r => r.talhao_id === id)
+      .toArray()
+    const first = recApps[0]
+    if (first) {
+      setForm(f => ({
+        ...f,
+        produto_id: first.produto_id || f.produto_id,
+        data_aplicacao: first.data_aplicacao || f.data_aplicacao,
+        dose: first.dose?.toString() || f.dose,
+        unidade_dose: first.unidade_dose || f.unidade_dose,
+        observacoes: first.observacoes || f.observacoes,
+      }))
+    }
+  }
+
   async function handleSaveAplicacao() {
     if (!user || !form.produto_id || !form.data_aplicacao) return
     const prod = produtos.find(p => p.id === form.produto_id)
@@ -218,6 +309,7 @@ export default function TalhaoPage() {
       if (aplicacaoBase?.id && aplicacaoBase.tipo === 'planejada') {
         await db.aplicacoes.delete(aplicacaoBase.id)
       }
+      const areaAplicada = form.area_aplicada ? Number(form.area_aplicada) : talhao?.area
       await criarAplicacao({
         talhao_id: id,
         produto_id: form.produto_id,
@@ -226,17 +318,29 @@ export default function TalhaoPage() {
         prazo_produto: prod.prazo_medio_aplicacao,
         dose: form.dose ? Number(form.dose) : undefined,
         unidade_dose: form.unidade_dose,
-        area_aplicada: form.area_aplicada ? Number(form.area_aplicada) : talhao?.area,
+        area_aplicada: areaAplicada,
         observacoes: form.observacoes,
         clima: form.clima,
         temperatura: form.temperatura ? Number(form.temperatura) : undefined,
         fotos: fotos.length > 0 ? fotos : undefined,
         usuario_id: user.id,
       })
+      // Subtrair quantidade do estoque do produto
+      if (prod.quantidade_disponivel != null && form.dose && areaAplicada) {
+        const quantidadeUsada = Number(form.dose) * areaAplicada
+        const novaQuantidade = Math.max(0, prod.quantidade_disponivel - quantidadeUsada)
+        const now = new Date().toISOString()
+        const updatedProd = { ...prod, quantidade_disponivel: novaQuantidade, updatedAt: now }
+        await db.produtos.update(form.produto_id, { quantidade_disponivel: novaQuantidade, updatedAt: now })
+        await enqueueSync('produto', 'upsert', updatedProd as unknown as Record<string, unknown>)
+        processSyncQueue()
+      }
       await loadData()
       setModalOpen(false)
       setAplicacaoBase(null)
       setFotos([])
+      setModalMode('produto')
+      setSelectedRecomendacaoId('')
       setForm({
         produto_id: '', data_aplicacao: TODAY,
         dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '',
@@ -979,12 +1083,12 @@ export default function TalhaoPage() {
       {/* ── Modal Aplicação ── */}
       <Modal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setAplicacaoBase(null) }}
+        onClose={() => { setModalOpen(false); setAplicacaoBase(null); setModalMode('produto'); setSelectedRecomendacaoId('') }}
         title={aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Aplicação' : 'Registrar Aplicação'}
         size="lg"
         footer={
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => { setModalOpen(false); setAplicacaoBase(null) }} className="flex-1">Cancelar</Button>
+            <Button variant="outline" onClick={() => { setModalOpen(false); setAplicacaoBase(null); setModalMode('produto'); setSelectedRecomendacaoId('') }} className="flex-1">Cancelar</Button>
             <Button onClick={handleSaveAplicacao} loading={loading} disabled={!form.produto_id} className="flex-1">
               {aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Realização' : 'Registrar'}
             </Button>
@@ -997,11 +1101,52 @@ export default function TalhaoPage() {
               Confirme os dados e registre a aplicação planejada como realizada.
             </div>
           )}
+
+          {/* Modo: Produto direto ou Recomendação técnica */}
+          {!aplicacaoBase && (
+            <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-dark)' }}>
+              {(['produto', 'recomendacao'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { setModalMode(mode); setSelectedRecomendacaoId('') }}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition"
+                  style={{
+                    background: modalMode === mode ? 'var(--bg-card)' : 'transparent',
+                    color: modalMode === mode ? 'var(--fg)' : 'var(--fg-muted)',
+                    boxShadow: modalMode === mode ? 'var(--shadow-xs)' : 'none',
+                  }}
+                >
+                  {mode === 'produto' ? 'Produto direto' : 'Recomendação técnica'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Modo Recomendação */}
+          {modalMode === 'recomendacao' && recomendacoes.length > 0 && (
+            <Select
+              label="Recomendação do agrônomo"
+              value={selectedRecomendacaoId}
+              onChange={e => handleSelectRecomendacao(e.target.value)}
+              options={recomendacoes.map(r => ({ value: r.id, label: `${r.nome} (até ${r.data_fim})` }))}
+              placeholder="Selecione a recomendação"
+            />
+          )}
+          {modalMode === 'recomendacao' && recomendacoes.length === 0 && (
+            <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'hsl(45 100% 96%)', color: 'hsl(32 95% 38%)' }}>
+              Nenhuma recomendação técnica cadastrada para esta fazenda. Cadastre em Recomendações.
+            </div>
+          )}
+
           <Select
             label="Produto"
             value={form.produto_id}
             onChange={e => setForm(f => ({ ...f, produto_id: e.target.value }))}
-            options={produtos.map(p => ({ value: p.id, label: `${p.nome} (cada ${p.prazo_medio_aplicacao}d)` }))}
+            options={produtos.map(p => {
+              const estoque = p.quantidade_disponivel != null ? ` · ${p.quantidade_disponivel} ${p.unidade_quantidade || 'un'}` : ''
+              return { value: p.id, label: `${p.nome} (cada ${p.prazo_medio_aplicacao}d${estoque})` }
+            })}
             placeholder="Selecione o produto"
           />
           <Input

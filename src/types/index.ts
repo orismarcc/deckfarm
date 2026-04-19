@@ -170,6 +170,8 @@ export interface Produto {
   fabricante?: string
   registro_mapa?: string
   unidade?: string
+  quantidade_disponivel?: number   // estoque atual
+  unidade_quantidade?: string      // ex: L, kg, g, ml, sc
   fazenda_id: string
   createdAt: string
   updatedAt: string
@@ -228,7 +230,7 @@ export interface DashboardStats {
 export interface SyncQueueItem {
   id: string
   entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao'
-  action: 'create' | 'update' | 'delete'
+  action: 'upsert' | 'delete'
   data: Record<string, unknown>
   timestamp: string
   retries: number

@@ -300,7 +300,7 @@ export default function CronogramaPage() {
           </div>
         </div>
       ) : (
-        <div className="animate-enter animate-enter-3">
+        <div className="animate-enter animate-enter-3 overflow-x-hidden">
           {loading ? (
             <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
           ) : timeline.length === 0 ? (
@@ -309,9 +309,9 @@ export default function CronogramaPage() {
               <p style={{ color: 'var(--fg-muted)' }}>Nenhum evento no cronograma</p>
             </div>
           ) : (
-            <div className="relative">
-              <div className="absolute top-0 bottom-0 w-px" style={{ left: '4rem', background: 'var(--borda)' }} />
-              <div className="space-y-4">
+            <div className="relative overflow-hidden">
+              <div className="absolute top-0 bottom-0 w-px" style={{ left: '3.5rem', background: 'var(--borda)' }} />
+              <div className="space-y-3">
                 {timeline.map((ev, i) => {
                   const tc = ev.type === 'aplicacao' && ev.status
                     ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
@@ -324,42 +324,47 @@ export default function CronogramaPage() {
                     } catch { return 0 }
                   })()
                   return (
-                    <div key={ev.id} className="flex gap-4 relative animate-enter"
+                    <div key={ev.id} className="flex gap-3 relative animate-enter min-w-0"
                       style={{ animationDelay: `${i * 35}ms` }}>
+                      {/* Date column */}
                       <div className="w-14 flex-shrink-0 text-right pt-1.5">
-                        <div className="text-xs font-semibold" style={{ color: 'var(--fg)' }}>
+                        <div className="text-xs font-semibold leading-tight" style={{ color: 'var(--fg)' }}>
                           {format(parseISO(ev.date), 'dd/MM')}
                         </div>
-                        <div className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-                          {dias === 0 ? 'hoje' : dias > 0 ? `+${dias}d` : `${Math.abs(dias)}d atrás`}
+                        <div className="text-[10px] leading-tight" style={{ color: 'var(--fg-subtle)' }}>
+                          {dias === 0 ? 'hoje' : dias > 0 ? `+${dias}d` : `${Math.abs(dias)}d`}
                         </div>
                       </div>
+                      {/* Timeline dot */}
                       <div className="w-3 h-3 rounded-full border-2 flex-shrink-0 mt-2 z-10"
                         style={{ background: 'var(--bg-card)', borderColor: tc.text }} />
-                      <div className="flex-1 card p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span style={{ color: tc.text }}>{eventTypeIcon[ev.type]}</span>
-                              <div className="font-medium text-sm" style={{ color: 'var(--fg)' }}>
+                      {/* Card */}
+                      <div className="flex-1 min-w-0 card p-3">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="flex-shrink-0" style={{ color: tc.text }}>{eventTypeIcon[ev.type]}</span>
+                              <div className="font-medium text-sm truncate" style={{ color: 'var(--fg)' }}>
                                 {ev.label}
                               </div>
                             </div>
                             {(ev.talhaoNome || ev.fazendaNome) && (
-                              <div className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                              <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--fg-muted)' }}>
                                 {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
                               </div>
                             )}
                           </div>
-                          {ev.type === 'aplicacao' && ev.status && (
-                            <StatusBadge status={ev.status as any} />
-                          )}
-                          {ev.type !== 'aplicacao' && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                              style={{ color: tc.text, background: tc.bg }}>
-                              {ev.type === 'plantio' ? 'Plantio' : 'Colheita'}
-                            </span>
-                          )}
+                          <div className="flex-shrink-0">
+                            {ev.type === 'aplicacao' && ev.status && (
+                              <StatusBadge status={ev.status as any} />
+                            )}
+                            {ev.type !== 'aplicacao' && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ color: tc.text, background: tc.bg }}>
+                                {ev.type === 'plantio' ? 'Plantio' : 'Colheita'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

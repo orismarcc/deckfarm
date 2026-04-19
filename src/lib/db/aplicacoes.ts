@@ -1,4 +1,5 @@
 import { getDB } from './index'
+import { enqueueSync, processSyncQueue } from './sync'
 import type { Aplicacao, AplicacaoStatus } from '@/types'
 import { addDays, isToday, isPast, differenceInDays, parseISO } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
@@ -45,6 +46,9 @@ export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplic
 
   await db.aplicacoes.add(aplicacao)
   await gerarNotificacoes(aplicacao)
+  // Sync to Supabase
+  await enqueueSync('aplicacao', 'upsert', aplicacao as unknown as Record<string, unknown>)
+  processSyncQueue()
   return aplicacao
 }
 
