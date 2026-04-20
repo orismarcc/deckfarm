@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select'
 
 export default function TalhoesPage() {
   const { user } = useAuthStore()
-  const { fazendas, setFazendas } = useAppStore()
+  const { fazendas, setFazendas, lastServerSyncAt } = useAppStore()
   const [talhoes, setTalhoes] = useState<(Talhao & { fazenda?: Fazenda; atrasadas: number })[]>([])
   const [filtroFazenda, setFiltroFazenda] = useState('')
   const [busca, setBusca] = useState('')
@@ -37,6 +37,7 @@ export default function TalhoesPage() {
   }, [user, setFazendas])
 
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fazendaOptions = [
     { value: '', label: 'Todas as fazendas' },

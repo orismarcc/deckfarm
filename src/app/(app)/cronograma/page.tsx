@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select } from '@/components/ui/select'
@@ -52,6 +53,7 @@ const eventTypeIcon: Record<EventType, React.ReactNode> = {
 
 export default function CronogramaPage() {
   const { user } = useAuthStore()
+  const { lastServerSyncAt } = useAppStore()
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
   const [talhoes, setTalhoes] = useState<Talhao[]>([])
   const [fazendas, setFazendas] = useState<Fazenda[]>([])
@@ -83,6 +85,7 @@ export default function CronogramaPage() {
   }, [user])
 
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Build unified event list ─────────────────────────────────────────────
 

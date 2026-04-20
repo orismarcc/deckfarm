@@ -33,7 +33,7 @@ function StatCard({ label, value, icon: Icon, color, bg, border }: StatProps) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
-  const { stats, setStats, fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, setNotificacoes } = useAppStore()
+  const { stats, setStats, fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, setNotificacoes, lastServerSyncAt } = useAppStore()
   const [loading, setLoading] = useState(true)
   const [urgentes, setUrgentes] = useState<Aplicacao[]>([])
 
@@ -60,7 +60,10 @@ export default function DashboardPage() {
     } finally { setLoading(false) }
   }, [user, setStats, setFazendas, setTalhoes, setAplicacoes, setNotificacoes])
 
+  // Initial load from local Dexie
   useEffect(() => { loadData() }, [loadData])
+  // Re-run whenever the server pull completes (new data may have arrived)
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (

@@ -27,7 +27,7 @@ const culturaOptions = [
 
 export default function AplicacoesPage() {
   const { user } = useAuthStore()
-  const { fazendas, setFazendas } = useAppStore()
+  const { fazendas, setFazendas, lastServerSyncAt } = useAppStore()
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
   const [loading, setLoading] = useState(true)
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -51,6 +51,7 @@ export default function AplicacoesPage() {
   }, [user, setFazendas])
 
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fazendaOptions = [
     { value: '', label: 'Todas as fazendas' },

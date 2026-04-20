@@ -11,6 +11,9 @@ interface AppState {
   isOnline: boolean
   isSyncing: boolean
   selectedFazendaId: string | null
+  /** Timestamp (ms) of the last successful server pull — 0 = never pulled.
+   *  Pages subscribe to this to know when to re-run their local Dexie queries. */
+  lastServerSyncAt: number
 
   setFazendas: (f: Fazenda[]) => void
   setTalhoes: (t: Talhao[]) => void
@@ -21,6 +24,7 @@ interface AppState {
   setOnline: (v: boolean) => void
   setSyncing: (v: boolean) => void
   setSelectedFazenda: (id: string | null) => void
+  setLastServerSyncAt: (ts: number) => void
 
   addFazenda: (f: Fazenda) => void
   updateFazenda: (id: string, updates: Partial<Fazenda>) => void
@@ -49,6 +53,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   isOnline: true,
   isSyncing: false,
   selectedFazendaId: null,
+  lastServerSyncAt: 0,
 
   setFazendas: (fazendas) => set({ fazendas }),
   setTalhoes: (talhoes) => set({ talhoes }),
@@ -59,6 +64,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setOnline: (isOnline) => set({ isOnline }),
   setSyncing: (isSyncing) => set({ isSyncing }),
   setSelectedFazenda: (selectedFazendaId) => set({ selectedFazendaId }),
+  setLastServerSyncAt: (lastServerSyncAt) => set({ lastServerSyncAt }),
 
   addFazenda: (f) => set((s) => ({ fazendas: [...s.fazendas, f] })),
   updateFazenda: (id, updates) =>

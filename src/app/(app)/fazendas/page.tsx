@@ -15,7 +15,7 @@ import Link from 'next/link'
 
 export default function FazendasPage() {
   const { user } = useAuthStore()
-  const { fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, addFazenda, updateFazenda, deleteFazenda } = useAppStore()
+  const { fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, addFazenda, updateFazenda, deleteFazenda, lastServerSyncAt } = useAppStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState<Fazenda | null>(null)
   const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '' })
@@ -36,6 +36,8 @@ export default function FazendasPage() {
   }, [user, setFazendas, setTalhoes, setAplicacoes])
 
   useEffect(() => { loadData() }, [loadData])
+  // Re-run when server pull completes so cross-device data appears immediately
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openModal(f?: Fazenda) {
     if (f) {

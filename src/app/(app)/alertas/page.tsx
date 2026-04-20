@@ -19,7 +19,7 @@ const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; color:
 
 export default function AlertasPage() {
   const { user } = useAuthStore()
-  const { notificacoes, setNotificacoes, markNotificacaoLida } = useAppStore()
+  const { notificacoes, setNotificacoes, markNotificacaoLida, lastServerSyncAt } = useAppStore()
   const [loading, setLoading] = useState(true)
   const [filtroLida, setFiltroLida] = useState<'nao_lidas' | 'todas'>('nao_lidas')
 
@@ -40,6 +40,7 @@ export default function AlertasPage() {
   }, [user, setNotificacoes])
 
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function marcarLida(id: string) {
     await getDB().notificacoes.update(id, { lida: true })

@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ ok: true })
+  if (!supabase) {
+    logger.error('sync_supabase_unavailable', { userId: user.id, table, action })
+    return NextResponse.json({ error: 'Supabase não configurado' }, { status: 503 })
+  }
 
   if (action === 'delete') {
     const { error } = await supabase.from(table).delete().eq('id', dataId)

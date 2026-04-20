@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ fazendas: [] })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   const { data, error } = await supabase
     .from('fazendas').select('*').eq('usuario_id', user.id).order('nome')
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ fazenda })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   const { data, error } = await supabase
     .from('fazendas').upsert(fazenda).select().single()

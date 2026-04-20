@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ talhoes: [] })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   let query = supabase
     .from('talhoes')
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ talhao })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   const { data, error } = await supabase
     .from('talhoes').upsert(talhao).select().single()

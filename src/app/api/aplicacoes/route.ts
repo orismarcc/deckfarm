@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ aplicacoes: [] })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   let query = supabase
     .from('aplicacoes')
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient()
-  if (!supabase) return NextResponse.json({ aplicacao })
+  if (!supabase) return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
 
   const { data, error } = await supabase
     .from('aplicacoes').upsert(aplicacao).select().single()

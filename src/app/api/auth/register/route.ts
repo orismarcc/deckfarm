@@ -38,13 +38,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient()
     if (!supabase) {
-      const user = {
-        id: uuidv4(), nome, apelido: apelido || undefined, email,
-        tipo: 'agronomo' as const,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      }
-      const token = await signToken(user)
-      return NextResponse.json({ user, token })
+      logger.error('register_supabase_unavailable')
+      return NextResponse.json({ error: 'Serviço indisponível. Tente novamente.' }, { status: 503 })
     }
 
     // Check duplicate email
@@ -55,34 +50,46 @@ export async function POST(request: NextRequest) {
     }
 
     const hash = await bcrypt.hash(senha, 12) // 12 rounds for production
+    const now = new Date().toISOString()
     const userBase = {
       id: uuidv4(), nome, email, senha: hash,
       tipo: 'agronomo' as const,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      createdAt: now, updatedAt: now,
     }
 
     // Try with apelido; if column missing, retry without it
+    // In both cases, SELECT the row back to confirm the UUID actually stored in the DB
+    let insertedUser: Record<string, unknown> | null = null
     let insertError: { message: string } | null = null
+
     if (apelido) {
-      const res = await supabase.from('users').insert({ ...userBase, apelido })
+      const res = await supabase
+        .from('users').insert({ ...userBase, apelido }).select('*').single()
       insertError = res.error
+      insertedUser = res.data as Record<string, unknown> | null
       if (insertError?.message?.includes('apelido')) {
-        const res2 = await supabase.from('users').insert(userBase)
+        // apelido column doesn't exist — retry without it
+        const res2 = await supabase
+          .from('users').insert(userBase).select('*').single()
         insertError = res2.error
+        insertedUser = res2.data as Record<string, unknown> | null
       }
     } else {
-      const res = await supabase.from('users').insert(userBase)
+      const res = await supabase
+        .from('users').insert(userBase).select('*').single()
       insertError = res.error
+      insertedUser = res.data as Record<string, unknown> | null
     }
 
-    if (insertError) {
-      logger.error('register_insert_failed', { message: insertError.message })
+    if (insertError || !insertedUser) {
+      logger.error('register_insert_failed', { message: insertError?.message })
       return NextResponse.json({ error: 'Erro ao criar conta' }, { status: 500 })
     }
 
-    const { senha: _, ...safeUser } = { ...userBase, apelido: apelido || undefined }
-    const token = await signToken(safeUser)
-    logger.info('register_success', { userId: userBase.id })
+    // Use the UUID that was ACTUALLY stored in the DB (not the client-generated one)
+    const { senha: _, ...safeUser } = insertedUser as Record<string, unknown> & { senha: string }
+    const token = await signToken(safeUser as Omit<import('@/types').User, 'senha'>)
+    logger.info('register_success', { userId: insertedUser.id })
     return NextResponse.json({ user: safeUser, token })
   } catch {
     logger.error('register_error')

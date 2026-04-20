@@ -31,14 +31,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient()
     if (!supabase) {
-      // Demo mode — no real DB
-      const user = {
-        id: 'demo-user', nome: 'Usuário Demo', email,
-        tipo: 'agronomo' as const,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      }
-      const token = await signToken(user)
-      return NextResponse.json({ user, token })
+      logger.error('login_supabase_unavailable')
+      return NextResponse.json({ error: 'Serviço indisponível. Tente novamente.' }, { status: 503 })
     }
 
     const { data: user, error } = await supabase
