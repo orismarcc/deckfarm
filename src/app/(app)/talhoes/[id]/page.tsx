@@ -13,12 +13,12 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { culturaLabel, culturaIcon, gerarId } from '@/lib/utils'
-import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao } from '@/types'
+import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao, SemeaduraEtapa } from '@/types'
 import { PhotoPicker } from '@/components/ui/photo-picker'
 import {
   ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar,
   Sprout, CheckCircle2, Clock3, ChevronDown, ChevronUp, Pencil, RotateCcw,
-  CloudRain, StickyNote, Droplets,
+  CloudRain, StickyNote, Droplets, Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 import { addDays, differenceInDays, parseISO, format, subDays } from 'date-fns'
@@ -47,6 +47,9 @@ const STATUS_SEMEADURA_COLORS: Record<StatusSemeadura, { color: string; bg: stri
 }
 
 const TODAY = new Date().toISOString().split('T')[0]
+
+/** Portuguese ordinal for a sowing stage: 1 → "1ª", 2 → "2ª", etc. */
+function etapaOrdinal(n: number): string { return `${n}ª etapa` }
 
 // ── Notificações de semeadura e colheita ─────────────────────────────────────
 async function gerarNotificacoesSemeadura(talhao: Talhao, usuario_id: string): Promise<void> {
@@ -109,6 +112,13 @@ export default function TalhaoPage() {
   const [fazenda, setFazenda] = useState<Fazenda | null>(null)
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
+
+  // Semeadura etapas
+  const [etapas, setEtapas] = useState<SemeaduraEtapa[]>([])
+  const [etapaModal, setEtapaModal] = useState(false)
+  const [etapaForm, setEtapaForm] = useState({ area_semeada: '', data_semeadura: TODAY, observacoes: '' })
+  const [etapaLoading, setEtapaLoading] = useState(false)
+  const [etapaError, setEtapaError] = useState('')
 
   // Plantio modal
   const [plantioModal, setPlantioModal] = useState(false)
@@ -183,6 +193,10 @@ export default function TalhaoPage() {
     }))
     setAplicacoes(enriched as Aplicacao[])
 
+    // Load semeadura etapas
+    const ets = await db.semeaduraEtapas.where('talhao_id').equals(id).sortBy('etapa')
+    setEtapas(ets)
+
     // Load pluviometria
     const pluvio = await db.pluviometros.where('talhao_id').equals(id).first()
     setPluviometro(pluvio || null)
@@ -211,8 +225,8 @@ export default function TalhaoPage() {
     setPlantioForm({
       data_plantio: talhao?.data_plantio || TODAY,
       data_colheita_prevista: talhao?.data_colheita_prevista || '',
-      status_semeadura: talhao?.status_semeadura || '',
-      area_semeada: talhao?.area_semeada != null ? String(talhao.area_semeada) : '',
+      status_semeadura: '',   // computed from etapas — not editable here
+      area_semeada: '',       // computed from etapas — not editable here
     })
     setPlantioModal(true)
   }
@@ -256,6 +270,59 @@ export default function TalhaoPage() {
       await loadData()
       setPlantioModal(false)
     } finally { setPlantioLoading(false) }
+  }
+
+  // ── Semeadura etapas ─────────────────────────────────────────────────────
+  async function salvarEtapa() {
+    if (!talhao || !user) return
+    const area = Number(etapaForm.area_semeada)
+    const totalJaSemeado = etapas.reduce((acc, e) => acc + e.area_semeada, 0)
+    const areaRestante = Math.max(0, talhao.area - totalJaSemeado)
+
+    if (!area || area <= 0) { setEtapaError('Informe a área semeada.'); return }
+    if (area > areaRestante) {
+      setEtapaError(`Área máxima disponível: ${areaRestante.toFixed(2)} ha (talhão: ${talhao.area} ha, já semeado: ${totalJaSemeado.toFixed(2)} ha).`)
+      return
+    }
+    setEtapaError('')
+    setEtapaLoading(true)
+    try {
+      const db = getDB()
+      const now = new Date().toISOString()
+      const novaEtapa: SemeaduraEtapa = {
+        id: gerarId(),
+        talhao_id: id,
+        fazenda_id: talhao.fazenda_id,
+        usuario_id: user.id,
+        etapa: etapas.length + 1,
+        area_semeada: area,
+        data_semeadura: etapaForm.data_semeadura || TODAY,
+        observacoes: etapaForm.observacoes.trim() || undefined,
+        createdAt: now,
+        updatedAt: now,
+        _syncStatus: 'pending',
+      }
+      await db.semeaduraEtapas.put(novaEtapa)
+      await enqueueSync('semeadura_etapa', 'upsert', novaEtapa as unknown as Record<string, unknown>)
+
+      // Recompute talhão cached totals so other pages see fresh data
+      const novoTotal = totalJaSemeado + area
+      const novoStatus: StatusSemeadura = novoTotal >= talhao.area ? 'finalizada' : 'em_andamento'
+      const updatedTalhao: Talhao = {
+        ...talhao,
+        area_semeada: novoTotal,
+        status_semeadura: novoStatus,
+        updatedAt: now,
+        _syncStatus: 'pending',
+      }
+      await db.talhoes.put(updatedTalhao)
+      await enqueueSync('talhao', 'upsert', updatedTalhao as unknown as Record<string, unknown>)
+      processSyncQueue()
+
+      setEtapaModal(false)
+      setEtapaForm({ area_semeada: '', data_semeadura: TODAY, observacoes: '' })
+      await loadData()
+    } finally { setEtapaLoading(false) }
   }
 
   // ── Aplicação ────────────────────────────────────────────────────────────
@@ -303,13 +370,20 @@ export default function TalhaoPage() {
     if (!user || !form.produto_id || !form.data_aplicacao) return
     const prod = produtos.find(p => p.id === form.produto_id)
     if (!prod) return
+
+    // Validate area_aplicada does not exceed talhão area
+    const areaAplicada = form.area_aplicada ? Number(form.area_aplicada) : talhao?.area
+    if (talhao && areaAplicada && areaAplicada > talhao.area) {
+      alert(`Área aplicada (${areaAplicada} ha) não pode ser maior que o talhão (${talhao.area} ha).`)
+      return
+    }
+
     setLoading(true)
     try {
       const db = getDB()
       if (aplicacaoBase?.id && aplicacaoBase.tipo === 'planejada') {
         await db.aplicacoes.delete(aplicacaoBase.id)
       }
-      const areaAplicada = form.area_aplicada ? Number(form.area_aplicada) : talhao?.area
       await criarAplicacao({
         talhao_id: id,
         produto_id: form.produto_id,
@@ -432,6 +506,15 @@ export default function TalhaoPage() {
     } finally { setAnotacaoLoading(false) }
   }
 
+  // ── Derived semeadura data ────────────────────────────────────────────────
+  const totalSemeado   = etapas.reduce((acc, e) => acc + e.area_semeada, 0)
+  const areaRestante   = talhao ? Math.max(0, talhao.area - totalSemeado) : 0
+  const semeaduraPctEt = talhao && talhao.area > 0 ? Math.min(100, (totalSemeado / talhao.area) * 100) : 0
+  const statusSemeaduraComputado: StatusSemeadura =
+    totalSemeado <= 0 ? 'nao_iniciada' :
+    talhao && totalSemeado >= talhao.area ? 'finalizada' : 'em_andamento'
+  const podeSemearMais = talhao?.data_plantio && statusSemeaduraComputado !== 'finalizada'
+
   // ── Derived data ─────────────────────────────────────────────────────────
   const planejadas = aplicacoes.filter(a => a.tipo === 'planejada')
   const realizadas = aplicacoes.filter(a => a.tipo !== 'planejada')
@@ -460,12 +543,7 @@ export default function TalhaoPage() {
     </div>
   )
 
-  // Semeadura progress
-  const semeaduraPct = talhao.area > 0 && talhao.area_semeada != null
-    ? Math.min(100, (talhao.area_semeada / talhao.area) * 100)
-    : 0
-  const semeaduraStatus = talhao.status_semeadura
-  const semeaduraColors = semeaduraStatus ? STATUS_SEMEADURA_COLORS[semeaduraStatus] : null
+  const semeaduraColors = STATUS_SEMEADURA_COLORS[statusSemeaduraComputado]
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
@@ -574,33 +652,34 @@ export default function TalhaoPage() {
               </div>
             </div>
 
-            {/* Semeadura progress — only when area > 0 */}
-            {talhao.area > 0 && talhao.area_semeada != null && (
-              <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--borda)' }}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Semeadura</span>
-                    {semeaduraStatus && semeaduraColors && (
-                      <span
-                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                        style={{ color: semeaduraColors.color, background: semeaduraColors.bg }}
-                      >
-                        {STATUS_SEMEADURA_LABELS[semeaduraStatus]}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-                    {talhao.area_semeada} / {talhao.area} ha ({semeaduraPct.toFixed(0)}%)
+            {/* Semeadura summary strip — always shown when plantio is set */}
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--borda)' }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>Semeadura</span>
+                  <span
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ color: semeaduraColors.color, background: semeaduraColors.bg }}
+                  >
+                    {STATUS_SEMEADURA_LABELS[statusSemeaduraComputado]}
                   </span>
+                  {etapas.length > 0 && (
+                    <span className="text-[10px]" style={{ color: 'var(--fg-subtle)' }}>
+                      {etapas.length} etapa{etapas.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-dark)' }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-500 bg-blue-400"
-                    style={{ width: `${semeaduraPct}%` }}
-                  />
-                </div>
+                <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                  {totalSemeado.toFixed(1)} / {talhao.area} ha ({semeaduraPctEt.toFixed(0)}%)
+                </span>
               </div>
-            )}
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-dark)' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${semeaduraPctEt}%`, background: semeaduraColors.color }}
+                />
+              </div>
+            </div>
 
             {talhao.data_colheita_prevista && (
               <p className="text-xs mt-3 flex items-center gap-1.5" style={{ color: 'var(--fg-subtle)' }}>
@@ -617,6 +696,106 @@ export default function TalhaoPage() {
           </div>
         )}
       </div>
+
+      {/* ── Semeadura Etapas Card ── */}
+      {talhao.data_plantio && (
+        <div className="animate-enter animate-enter-2 card p-5 mb-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'hsl(210 100% 45% / 0.1)' }}>
+                <Layers size={16} style={{ color: 'hsl(210 100% 40%)' }} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Etapas de Semeadura</h3>
+                <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                  {statusSemeaduraComputado === 'finalizada'
+                    ? `${talhao.area} ha semeados — concluído`
+                    : statusSemeaduraComputado === 'em_andamento'
+                    ? `${totalSemeado.toFixed(1)} ha de ${talhao.area} ha · ${areaRestante.toFixed(1)} ha restantes`
+                    : `${talhao.area} ha a semear`}
+                </p>
+              </div>
+            </div>
+            {podeSemearMais && (
+              <button
+                onClick={() => { setEtapaError(''); setEtapaForm({ area_semeada: '', data_semeadura: TODAY, observacoes: '' }); setEtapaModal(true) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+                style={{ background: 'hsl(210 100% 45%)', color: 'white' }}
+              >
+                <Plus size={11} /> Registrar
+              </button>
+            )}
+          </div>
+
+          {/* Stage list */}
+          {etapas.length === 0 ? (
+            <div className="rounded-xl py-5 text-center" style={{ background: 'var(--bg)' }}>
+              <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+                Nenhuma etapa registrada ainda.
+              </p>
+              {podeSemearMais && (
+                <button
+                  onClick={() => { setEtapaError(''); setEtapaForm({ area_semeada: '', data_semeadura: TODAY, observacoes: '' }); setEtapaModal(true) }}
+                  className="mt-2 text-xs font-semibold"
+                  style={{ color: 'hsl(210 100% 40%)' }}
+                >
+                  + Registrar 1ª etapa
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {etapas.map((et, i) => {
+                const pctEtapa = talhao.area > 0 ? (et.area_semeada / talhao.area) * 100 : 0
+                return (
+                  <div
+                    key={et.id}
+                    className="flex items-center gap-3 px-3 py-3 rounded-xl"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--borda)' }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
+                      style={{ background: 'hsl(210 100% 45% / 0.12)', color: 'hsl(210 100% 35%)' }}
+                    >
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold" style={{ color: 'var(--fg)' }}>
+                          {etapaOrdinal(et.etapa)} — {et.area_semeada} ha ({pctEtapa.toFixed(0)}%)
+                        </span>
+                        <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
+                          {format(parseISO(et.data_semeadura), 'dd/MM/yyyy')}
+                        </span>
+                      </div>
+                      {et.observacoes && (
+                        <p className="text-[11px] truncate" style={{ color: 'var(--fg-muted)' }}>{et.observacoes}</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Total bar */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--fg-muted)' }}>Total semeado</span>
+                  <span className="text-[11px] font-semibold" style={{ color: semeaduraColors.color }}>
+                    {totalSemeado.toFixed(1)} / {talhao.area} ha
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-dark)' }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${semeaduraPctEt}%`, background: semeaduraColors.color }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Alert cards */}
       {(atrasadas.length > 0 || proximas.length > 0) && (
@@ -1041,31 +1220,6 @@ export default function TalhaoPage() {
             onChange={e => setPlantioForm(f => ({ ...f, data_colheita_prevista: e.target.value }))}
           />
 
-          {/* Semeadura fields */}
-          <Select
-            label="Status de semeadura"
-            value={plantioForm.status_semeadura}
-            onChange={e => setPlantioForm(f => ({ ...f, status_semeadura: e.target.value as StatusSemeadura | '' }))}
-            options={[
-              { value: 'nao_iniciada', label: 'Não iniciada' },
-              { value: 'em_andamento', label: 'Em andamento' },
-              { value: 'finalizada', label: 'Finalizada' },
-            ]}
-            placeholder="Selecionar status"
-          />
-          <Input
-            label={`Área semeada (ha) — máx ${talhao.area} ha`}
-            type="number"
-            value={plantioForm.area_semeada}
-            onChange={e => {
-              const val = e.target.value
-              if (val === '' || Number(val) <= talhao.area) {
-                setPlantioForm(f => ({ ...f, area_semeada: val }))
-              }
-            }}
-            placeholder={`Ex: ${talhao.area}`}
-          />
-
           {plantioForm.data_plantio && talhao && (
             <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'hsl(160 84% 22% / 0.08)', color: 'hsl(160 84% 22%)' }}>
               <p className="font-medium">Ciclo estimado: {CICLO_CULTURA[talhao.cultura] ?? 120} dias</p>
@@ -1213,6 +1367,70 @@ export default function TalhaoPage() {
           <PhotoPicker label="Fotos da aplicação" photos={fotos} onChange={setFotos} maxPhotos={4} />
         </div>
       </Modal>
+
+      {/* ── Modal Registrar Etapa de Semeadura ── */}
+      {talhao && (
+        <Modal
+          open={etapaModal}
+          onClose={() => { setEtapaModal(false); setEtapaError('') }}
+          title={`Registrar ${etapaOrdinal(etapas.length + 1)} de Semeadura`}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => { setEtapaModal(false); setEtapaError('') }} className="flex-1">Cancelar</Button>
+              <Button
+                onClick={salvarEtapa}
+                loading={etapaLoading}
+                disabled={!etapaForm.area_semeada || Number(etapaForm.area_semeada) <= 0}
+                className="flex-1"
+              >
+                Salvar Etapa
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {/* Info about remaining area */}
+            <div className="rounded-xl px-4 py-3 text-xs space-y-1"
+              style={{ background: 'hsl(210 100% 97%)', color: 'hsl(210 100% 35%)' }}>
+              <p className="font-semibold">Talhão: {talhao.area} ha total</p>
+              {totalSemeado > 0 && (
+                <p>Já semeado: {totalSemeado.toFixed(2)} ha · Disponível: <strong>{areaRestante.toFixed(2)} ha</strong></p>
+              )}
+            </div>
+
+            <Input
+              label={`Área semeada nesta etapa (ha) — máx ${areaRestante.toFixed(2)} ha`}
+              type="number"
+              value={etapaForm.area_semeada}
+              onChange={e => {
+                setEtapaError('')
+                const val = e.target.value
+                if (val === '' || Number(val) >= 0) setEtapaForm(f => ({ ...f, area_semeada: val }))
+              }}
+              placeholder={`Ex: ${areaRestante.toFixed(1)}`}
+              required
+            />
+            <Input
+              label="Data da semeadura"
+              type="date"
+              value={etapaForm.data_semeadura}
+              onChange={e => setEtapaForm(f => ({ ...f, data_semeadura: e.target.value }))}
+            />
+            <Textarea
+              label="Observações (opcional)"
+              value={etapaForm.observacoes}
+              onChange={e => setEtapaForm(f => ({ ...f, observacoes: e.target.value }))}
+              placeholder="Condições, equipamento, operador..."
+            />
+            {etapaError && (
+              <p className="text-xs font-medium px-3 py-2 rounded-lg"
+                style={{ background: 'hsl(4 80% 97%)', color: 'hsl(4 72% 45%)' }}>
+                {etapaError}
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {/* ── Modal Anotação ── */}
       <Modal

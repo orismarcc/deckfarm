@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie'
-import type { User, Fazenda, Talhao, Produto, Aplicacao, Notificacao, SyncQueueItem, Safra, FazendaMembro, Pluviometro, RegistroChuva, Anotacao, Recomendacao, RecomendacaoAplicacao } from '@/types'
+import type { User, Fazenda, Talhao, Produto, Aplicacao, Notificacao, SyncQueueItem, Safra, FazendaMembro, Pluviometro, RegistroChuva, Anotacao, Recomendacao, RecomendacaoAplicacao, SemeaduraEtapa } from '@/types'
 
 export class DeckFarmDB extends Dexie {
   users!: Table<User>
@@ -16,6 +16,7 @@ export class DeckFarmDB extends Dexie {
   anotacoes!: Table<Anotacao>
   recomendacoes!: Table<Recomendacao>
   recomendacaoAplicacoes!: Table<RecomendacaoAplicacao>
+  semeaduraEtapas!: Table<SemeaduraEtapa>
 
   constructor() {
     super('DeckFarmDB')
@@ -67,6 +68,24 @@ export class DeckFarmDB extends Dexie {
       anotacoes: 'id, talhao_id, fazenda_id, usuario_id, data',
       recomendacoes: 'id, fazenda_id, usuario_id, data_inicio, data_fim',
       recomendacaoAplicacoes: 'id, recomendacao_id, talhao_id, produto_id, data_aplicacao',
+    })
+    // v5: semeadura_etapas — multi-stage sowing tracking per talhão
+    this.version(5).stores({
+      users: 'id, email',
+      fazendas: 'id, usuario_id, nome',
+      talhoes: 'id, fazenda_id, nome, cultura, data_plantio, status_semeadura',
+      produtos: 'id, fazenda_id, nome, tipo',
+      aplicacoes: 'id, talhao_id, produto_id, usuario_id, data_aplicacao, proxima_aplicacao, status, safra_id, tipo',
+      notificacoes: 'id, usuario_id, lida, data_referencia, tipo',
+      syncQueue: 'id, entity, action, timestamp',
+      safras: 'id, fazenda_id, status, ano_inicio',
+      fazendaMembros: 'id, fazenda_id, usuario_id, status',
+      pluviometros: 'id, fazenda_id, talhao_id',
+      registrosChuva: 'id, pluviometro_id, fazenda_id, data',
+      anotacoes: 'id, talhao_id, fazenda_id, usuario_id, data',
+      recomendacoes: 'id, fazenda_id, usuario_id, data_inicio, data_fim',
+      recomendacaoAplicacoes: 'id, recomendacao_id, talhao_id, produto_id, data_aplicacao',
+      semeaduraEtapas: 'id, talhao_id, fazenda_id, usuario_id, etapa, data_semeadura',
     })
   }
 }

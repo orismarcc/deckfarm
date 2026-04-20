@@ -8,6 +8,20 @@ export type SafraStatus = 'planejada' | 'em_andamento' | 'finalizada'
 export type MembroRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
 export type StatusSemeadura = 'nao_iniciada' | 'em_andamento' | 'finalizada'
 
+export interface SemeaduraEtapa {
+  id: string
+  talhao_id: string
+  fazenda_id: string
+  usuario_id: string
+  etapa: number           // 1, 2, 3, ... (sequential stage number)
+  area_semeada: number    // ha planted in THIS stage
+  data_semeadura: string  // ISO date
+  observacoes?: string
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
+
 export interface User {
   id: string
   nome: string
@@ -229,7 +243,7 @@ export interface DashboardStats {
 
 export interface SyncQueueItem {
   id: string
-  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao'
+  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao' | 'semeadura_etapa'
   action: 'upsert' | 'delete'
   data: Record<string, unknown>
   timestamp: string

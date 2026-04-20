@@ -6,10 +6,11 @@ import { logger } from '@/lib/security/logger'
 
 // Strict allow-list of tables the sync route can touch
 const TABLE_MAP: Record<string, string> = {
-  fazenda:  'fazendas',
-  talhao:   'talhoes',
-  produto:  'produtos',
-  aplicacao: 'aplicacoes',
+  fazenda:          'fazendas',
+  talhao:           'talhoes',
+  produto:          'produtos',
+  aplicacao:        'aplicacoes',
+  semeadura_etapa:  'semeadura_etapas',
 }
 
 const ALLOWED_ACTIONS = ['upsert', 'delete'] as const
@@ -43,6 +44,11 @@ const ALLOWED_FIELDS: Record<string, Set<string>> = {
     'dose', 'unidade_dose', 'area_aplicada', 'responsavel',
     'observacoes', 'clima', 'temperatura', 'fotos',
     'usuario_id', 'createdAt', 'updatedAt',
+  ]),
+  semeadura_etapas: new Set([
+    'id', 'talhao_id', 'fazenda_id', 'usuario_id',
+    'etapa', 'area_semeada', 'data_semeadura', 'observacoes',
+    'createdAt', 'updatedAt',
   ]),
 }
 
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest) {
     const payload = pickAllowedFields(item.data ?? {}, table)
 
     // Force usuario_id to the authenticated user for owned tables — client cannot override
-    if (table === 'fazendas' || table === 'aplicacoes') {
+    if (table === 'fazendas' || table === 'aplicacoes' || table === 'semeadura_etapas') {
       payload.usuario_id = user.id
     }
 

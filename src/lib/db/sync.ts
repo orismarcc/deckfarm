@@ -1,5 +1,5 @@
 import { getDB } from './index'
-import type { SyncQueueItem, Fazenda, Talhao, Produto, Aplicacao } from '@/types'
+import type { SyncQueueItem, Fazenda, Talhao, Produto, Aplicacao, SemeaduraEtapa } from '@/types'
 import { useAppStore } from '@/store/app'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -48,23 +48,26 @@ export async function pullFromServer(token: string): Promise<void> {
 
   const db = getDB()
 
-  const [fazendas, talhoes, produtos, aplicacoes] = await Promise.all([
-    fetchEntity<Record<string, unknown>>('/api/fazendas',   token, 'fazendas'),
-    fetchEntity<Record<string, unknown>>('/api/talhoes',    token, 'talhoes'),
-    fetchEntity<Record<string, unknown>>('/api/produtos',   token, 'produtos'),
-    fetchEntity<Record<string, unknown>>('/api/aplicacoes', token, 'aplicacoes'),
+  const [fazendas, talhoes, produtos, aplicacoes, etapas] = await Promise.all([
+    fetchEntity<Record<string, unknown>>('/api/fazendas',           token, 'fazendas'),
+    fetchEntity<Record<string, unknown>>('/api/talhoes',            token, 'talhoes'),
+    fetchEntity<Record<string, unknown>>('/api/produtos',           token, 'produtos'),
+    fetchEntity<Record<string, unknown>>('/api/aplicacoes',         token, 'aplicacoes'),
+    fetchEntity<Record<string, unknown>>('/api/semeadura-etapas',   token, 'semeadura_etapas'),
   ])
 
   // Write to Dexie (idempotent — safe to run on every startup)
-  const cleanFazendas  = fazendas.map(stripJoins)  as unknown as Fazenda[]
-  const cleanTalhoes   = talhoes.map(stripJoins)   as unknown as Talhao[]
-  const cleanProdutos  = produtos.map(stripJoins)  as unknown as Produto[]
-  const cleanAplicacoes = aplicacoes.map(stripJoins) as unknown as Aplicacao[]
+  const cleanFazendas    = fazendas.map(stripJoins)  as unknown as Fazenda[]
+  const cleanTalhoes     = talhoes.map(stripJoins)   as unknown as Talhao[]
+  const cleanProdutos    = produtos.map(stripJoins)  as unknown as Produto[]
+  const cleanAplicacoes  = aplicacoes.map(stripJoins) as unknown as Aplicacao[]
+  const cleanEtapas      = etapas.map(stripJoins) as unknown as SemeaduraEtapa[]
 
   if (cleanFazendas.length)   await db.fazendas.bulkPut(cleanFazendas)
   if (cleanTalhoes.length)    await db.talhoes.bulkPut(cleanTalhoes)
   if (cleanProdutos.length)   await db.produtos.bulkPut(cleanProdutos)
   if (cleanAplicacoes.length) await db.aplicacoes.bulkPut(cleanAplicacoes)
+  if (cleanEtapas.length)     await db.semeaduraEtapas.bulkPut(cleanEtapas)
 
   // ── Update Zustand directly so all subscribed pages re-render immediately ──
   // This bypasses the layout → read Dexie → set Zustand chain and eliminates
