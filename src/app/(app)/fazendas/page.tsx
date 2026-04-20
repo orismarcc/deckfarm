@@ -143,6 +143,12 @@ export default function FazendasPage() {
             const totalArea = talhoesF.reduce((acc, t) => acc + (t.area || 0), 0)
             const culturas = [...new Set(talhoesF.map(t => t.cultura))]
             const comPlantio = talhoesF.filter(t => t.data_plantio).length
+            const totalAreaTalhoes = talhoesF.reduce((acc, t) => acc + (t.area || 0), 0)
+            const totalSemeadoF = talhoesF.reduce((acc, t) => acc + (t.area_semeada || 0), 0)
+            const pctSemeado = totalAreaTalhoes > 0 && totalSemeadoF > 0
+              ? Math.min(100, Math.round((totalSemeadoF / totalAreaTalhoes) * 100))
+              : 0
+            const isTotalmenteSemeado = pctSemeado >= 100
             const showWeather = !weatherOculta.has(f.id) && (!!f.latitude || !!f.localizacao)
 
             return (
@@ -224,6 +230,36 @@ export default function FazendasPage() {
                       bg={atrasadas > 0 ? 'hsl(4 80% 97%)' : hoje > 0 ? 'hsl(210 100% 97%)' : undefined}
                     />
                   </div>
+
+                  {/* Progresso de semeadura */}
+                  {pctSemeado > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>Semeadura</span>
+                        {isTotalmenteSemeado ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ color: 'hsl(160 84% 22%)', background: 'var(--verde-50)' }}>
+                            ✓ 100% plantado
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold" style={{ color: 'hsl(160 84% 22%)' }}>
+                            {pctSemeado}% semeado
+                          </span>
+                        )}
+                      </div>
+                      <div className="rounded-full overflow-hidden h-1.5" style={{ background: 'var(--bg-dark)' }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${pctSemeado}%`,
+                            background: isTotalmenteSemeado
+                              ? 'hsl(160 84% 30%)'
+                              : 'hsl(160 70% 42%)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Linha de status resumido */}
                   {(proximas > 0 || atrasadas > 0 || hoje > 0) && (

@@ -7,6 +7,7 @@ import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { Select } from '@/components/ui/select'
 import type { Aplicacao } from '@/types'
 import { FlaskConical, Filter, X } from 'lucide-react'
+import { parseISO } from 'date-fns'
 
 const statusOptions = [
   { value: '', label: 'Todos os status' },
@@ -62,6 +63,17 @@ export default function AplicacoesPage() {
     if (filtroStatus && a.status !== filtroStatus) return false
     if (filtroFazenda && (a.talhao as any)?.fazenda_id !== filtroFazenda) return false
     if (filtroCultura && (a.talhao as any)?.cultura !== filtroCultura) return false
+    // When no status filter is active, hide far-future planned apps (>14 days away).
+    // They'd clutter the list without being actionable. The user can still find them
+    // by selecting "No prazo" in the status filter.
+    if (!filtroStatus && a.tipo === 'planejada' && a.status === 'dentro_do_prazo') {
+      try {
+        const d = parseISO(a.data_aplicacao)
+        const hoje = new Date(); hoje.setHours(0,0,0,0)
+        const diffDias = Math.round((d.getTime() - hoje.getTime()) / 86400000)
+        if (diffDias > 14) return false
+      } catch { /* keep if date is invalid */ }
+    }
     return true
   })
 

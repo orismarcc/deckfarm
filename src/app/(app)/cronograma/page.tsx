@@ -158,7 +158,20 @@ export default function CronogramaPage() {
     })
   }
 
-  const timeline = [...events].sort((a, b) => a.date.localeCompare(b.date))
+  // Timeline shows a rolling window: 30 days past → 90 days future.
+  // Far-future planned apps (>90d) and stale past events (>30d ago) are hidden.
+  // This prevents unexecuted planned apps from polluting the list day after day.
+  const timelineWindowStart = (() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - 30); return d })()
+  const timelineWindowEnd   = (() => { const d = new Date(); d.setHours(23,59,59,999); d.setDate(d.getDate() + 90); return d })()
+
+  const timeline = [...events]
+    .filter(ev => {
+      try {
+        const d = parseISO(ev.date)
+        return d >= timelineWindowStart && d <= timelineWindowEnd
+      } catch { return false }
+    })
+    .sort((a, b) => a.date.localeCompare(b.date))
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-6xl mx-auto">
