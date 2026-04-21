@@ -299,7 +299,7 @@ export default function FazendasPage() {
                       <WeatherWidget
                         latitude={f.latitude}
                         longitude={f.longitude}
-                        localizacao={!f.latitude ? (f.localizacao?.split(' - ')[0] || f.localizacao) : undefined}
+                        localizacao={f.localizacao?.split(' - ')[0] || f.localizacao}
                         compact
                       />
                     </div>

@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select'
 import type { Aplicacao } from '@/types'
 import { FlaskConical, Filter, X } from 'lucide-react'
 import { parseISO } from 'date-fns'
+import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 
 const statusOptions = [
   { value: '', label: 'Todos os status' },
@@ -57,6 +58,9 @@ export default function AplicacoesPage() {
   async function handleDelete(id: string) {
     const db = getDB()
     await db.aplicacoes.delete(id)
+    // Sync deletion to Supabase so the record doesn't come back on next pull
+    await enqueueSync('aplicacao', 'delete', { id })
+    processSyncQueue()
     setAplicacoes(prev => prev.filter(a => a.id !== id))
   }
 

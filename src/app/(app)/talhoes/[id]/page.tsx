@@ -370,6 +370,9 @@ export default function TalhaoPage() {
   async function handleDeleteAplicacao(aplicacaoId: string) {
     const db = getDB()
     await db.aplicacoes.delete(aplicacaoId)
+    // Sync deletion to Supabase so it doesn't come back on next pull
+    await enqueueSync('aplicacao', 'delete', { id: aplicacaoId })
+    processSyncQueue()
     setAplicacoes(prev => prev.filter(a => a.id !== aplicacaoId))
     setDeletingApId(null)
   }
@@ -412,17 +415,22 @@ export default function TalhaoPage() {
     try {
       const db = getDB()
 
-      // If editing an existing realizada application
+      // If editing an existing application (realizada or planejada)
       if (editingAplicacao) {
         const [ay, am, ad] = form.data_aplicacao.split('-').map(Number)
         const novaProxima = format(addDays(new Date(ay, am - 1, ad), prod.prazo_medio_aplicacao), 'yyyy-MM-dd')
         const now = new Date().toISOString()
+        // For planejadas, status tracks data_aplicacao itself; for realizadas, proxima_aplicacao
+        const novoStatus = form.tipo === 'planejada'
+          ? calcularStatusLocal(form.data_aplicacao)
+          : calcularStatusLocal(novaProxima)
         const updated: Aplicacao = {
           ...editingAplicacao,
+          tipo: form.tipo,
           produto_id: form.produto_id,
           data_aplicacao: form.data_aplicacao,
           proxima_aplicacao: novaProxima,
-          status: calcularStatusLocal(novaProxima),
+          status: novoStatus,
           dose: form.dose ? Number(form.dose) : undefined,
           unidade_dose: form.unidade_dose,
           area_aplicada: form.area_aplicada ? Number(form.area_aplicada) : talhao?.area,
@@ -986,6 +994,16 @@ export default function TalhaoPage() {
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
                           >
                             <Trash2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => openAplicacaoModal(undefined, a)}
+                            className="p-1.5 rounded-lg transition-all"
+                            style={{ color: 'var(--fg-subtle)' }}
+                            title="Editar agendamento"
+                            onMouseEnter={e => { e.currentTarget.style.background = 'hsl(210 100% 96%)'; e.currentTarget.style.color = 'hsl(210 100% 40%)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
+                          >
+                            <Pencil size={14} />
                           </button>
                           <Button
                             size="sm"

@@ -48,14 +48,12 @@ export function WeatherWidget({ latitude, longitude, localizacao, compact = fals
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchWeather(lat: number, lng: number) {
-      setLoading(true)
-      setError(null)
+    async function fetchWeather(lat: number, lng: number): Promise<boolean> {
       try {
         const res = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,weather_code&daily=precipitation_sum,temperature_2m_max,temperature_2m_min&timezone=America%2FSao_Paulo&forecast_days=3`
         )
-        if (!res.ok) throw new Error()
+        if (!res.ok) return false
         const d = await res.json()
         setWeather({
           temp: Math.round(d.current.temperature_2m),
@@ -70,30 +68,52 @@ export function WeatherWidget({ latitude, longitude, localizacao, compact = fals
             precip: d.daily.precipitation_sum[i],
           })),
         })
+        return true
       } catch {
-        setError('Não foi possível carregar a previsão')
+        return false
+      }
+    }
+
+    async function geocodeAndFetch(city: string) {
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city + ', Brasil')}&format=json&limit=1&accept-language=pt-BR`,
+          { headers: { 'User-Agent': 'DeckFarm/1.0 (gestao-agricola)' } }
+        )
+        if (!r.ok) throw new Error()
+        const results = await r.json()
+        if (results && results.length > 0) {
+          const ok = await fetchWeather(parseFloat(results[0].lat), parseFloat(results[0].lon))
+          if (!ok) setError('Não foi possível carregar a previsão do tempo.')
+        } else {
+          setError(`Localização "${city}" não encontrada. Verifique o cadastro da fazenda.`)
+        }
+      } catch {
+        setError('Não foi possível carregar a previsão do tempo.')
+      }
+    }
+
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        // Try lat/lon first (most accurate); fall back to city geocoding
+        if (latitude && longitude) {
+          const ok = await fetchWeather(latitude, longitude)
+          if (!ok && localizacao) {
+            await geocodeAndFetch(localizacao)
+          } else if (!ok) {
+            setError('Não foi possível carregar a previsão do tempo.')
+          }
+        } else if (localizacao) {
+          await geocodeAndFetch(localizacao)
+        }
       } finally {
         setLoading(false)
       }
     }
 
-    if (latitude && longitude) {
-      fetchWeather(latitude, longitude)
-    } else if (localizacao) {
-      fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(localizacao + ', Brasil')}&format=json&limit=1&accept-language=pt-BR`,
-        { headers: { 'User-Agent': 'DeckFarm/1.0 (gestao-agricola)' } }
-      )
-        .then(r => { if (!r.ok) throw new Error(); return r.json() })
-        .then(results => {
-          if (results && results.length > 0) {
-            fetchWeather(parseFloat(results[0].lat), parseFloat(results[0].lon))
-          } else {
-            setError(`Cidade "${localizacao}" não encontrada. Tente um nome mais específico.`)
-          }
-        })
-        .catch(() => setError('Não foi possível carregar a previsão para esta localização'))
-    }
+    if (latitude || longitude || localizacao) load()
   }, [latitude, longitude, localizacao])
 
   if (!latitude && !longitude && !localizacao) return null
