@@ -241,9 +241,23 @@ export interface DashboardStats {
   total_aplicacoes: number
 }
 
+export interface EstoqueMovimentacao {
+  id: string
+  produto_id: string
+  fazenda_id: string
+  usuario_id: string
+  tipo: 'entrada' | 'saida' | 'ajuste'
+  quantidade: number          // amount changed (always positive)
+  quantidade_anterior: number
+  quantidade_nova: number
+  motivo?: string
+  data: string                // YYYY-MM-DD
+  createdAt: string
+}
+
 export interface SyncQueueItem {
   id: string
-  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao' | 'semeadura_etapa'
+  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao' | 'semeadura_etapa' | 'estoqueMovimentacao'
   action: 'upsert' | 'delete'
   data: Record<string, unknown>
   timestamp: string

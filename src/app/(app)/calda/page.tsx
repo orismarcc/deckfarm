@@ -12,6 +12,7 @@ import {
   Square,
   Droplets,
   Calculator,
+  FileText,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ export default function CaldaPage() {
   const { fazendas, setFazendas } = useAppStore()
   const [talhoes, setTalhoes] = useState<(Talhao & { fazenda?: Fazenda })[]>([])
   const [loading, setLoading] = useState(true)
+  const [gerandoPDF, setGerandoPDF] = useState(false)
 
   // Inputs
   const [taxa, setTaxa] = useState<string>('')
@@ -170,6 +172,32 @@ export default function CaldaPage() {
   }, {})
 
   const fazendaOptions = fazendas.map((f) => ({ value: f.id, label: f.nome }))
+
+  async function exportarCaldaPDF() {
+    setGerandoPDF(true)
+    try {
+      const { generateCaldaReport } = await import('@/lib/reports/pdf-report')
+      const fazendaSel = [...new Set(talhoesComVolume.map(t => t.fazenda_id))]
+        .map(fid => fazendas.find(f => f.id === fid))
+        .filter(Boolean) as Fazenda[]
+      await generateCaldaReport({
+        taxa: taxaNum,
+        capacidade: capacidadeNum,
+        volumeTotal,
+        numTanques,
+        sobra,
+        talhoes: talhoesComVolume.map(t => ({
+          nome: t.nome,
+          fazendaNome: t.fazenda?.nome ?? '',
+          area: t.area,
+          volume: t.volume,
+          tanques: t.tanques,
+        })),
+        fazendas: fazendaSel.map(f => ({ nome: f.nome, localizacao: f.localizacao, nome_produtor: f.nome_produtor })),
+        geradoEm: new Date().toLocaleString('pt-BR'),
+      })
+    } finally { setGerandoPDF(false) }
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -477,6 +505,23 @@ export default function CaldaPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Export PDF button */}
+              <button
+                onClick={exportarCaldaPDF}
+                disabled={gerandoPDF}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition self-start"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--borda)',
+                  color: 'var(--fg)',
+                  opacity: gerandoPDF ? 0.6 : 1,
+                  cursor: gerandoPDF ? 'wait' : 'pointer',
+                }}
+              >
+                <FileText size={14} />
+                {gerandoPDF ? 'Gerando...' : 'Exportar PDF'}
+              </button>
 
               {/* Per-talhão table */}
               <div

@@ -13,8 +13,9 @@ import { WeatherWidget } from '@/components/weather/weather-widget'
 import { MembrosSection } from '@/components/fazenda/membros-section'
 import { gerarId, culturaLabel, culturaIcon, produtoTipoLabel, produtoTipoColor, formatDate } from '@/lib/utils'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
-import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo } from '@/types'
-import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud } from 'lucide-react'
+import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo, EstoqueMovimentacao } from '@/types'
+import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud, History, TrendingUp, ArrowUp, ArrowDown, ArrowLeftRight } from 'lucide-react'
+import { format } from 'date-fns'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 
@@ -52,6 +53,12 @@ export default function FazendaDetailPage() {
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
   const [tab, setTab] = useState<Tab>('talhoes')
   const [gerandoPDF, setGerandoPDF] = useState(false)
+  const [movimentacoes, setMovimentacoes] = useState<EstoqueMovimentacao[]>([])
+  const [reporModal, setReporModal] = useState(false)
+  const [reporProduto, setReporProduto] = useState<Produto | null>(null)
+  const [reporForm, setReporForm] = useState({ quantidade: '', motivo: '', data: '' })
+  const [reporLoading, setReporLoading] = useState(false)
+  const [expandedProduto, setExpandedProduto] = useState<string | null>(null)
 
   // Talhão modal
   const [talhaoModal, setTalhaoModal] = useState(false)
@@ -83,6 +90,8 @@ export default function FazendaDetailPage() {
       const apps = await db.aplicacoes.where('talhao_id').anyOf(tals.map(t => t.id)).toArray()
       setAplicacoes(apps)
     }
+    const movs = await db.estoqueMovimentacoes.where('fazenda_id').equals(id).reverse().sortBy('data')
+    setMovimentacoes(movs)
   }, [id])
 
   useEffect(() => { loadData() }, [loadData])
@@ -148,6 +157,18 @@ export default function FazendaDetailPage() {
         const p = { ...editProduto, nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, updatedAt: now }
         await db.produtos.put(p)
         await enqueueSync('produto', 'upsert', p as unknown as Record<string, unknown>)
+        if (qtd !== undefined && qtd !== editProduto.quantidade_disponivel && user) {
+          const qtdAnterior = editProduto.quantidade_disponivel ?? 0
+          const mov: EstoqueMovimentacao = {
+            id: gerarId(), produto_id: editProduto.id, fazenda_id: id, usuario_id: user.id,
+            tipo: 'ajuste', quantidade: Math.abs(qtd - qtdAnterior),
+            quantidade_anterior: qtdAnterior, quantidade_nova: qtd,
+            motivo: 'Ajuste manual no cadastro',
+            data: format(new Date(), 'yyyy-MM-dd'), createdAt: new Date().toISOString(),
+          }
+          await db.estoqueMovimentacoes.add(mov)
+          await enqueueSync('estoqueMovimentacao', 'upsert', mov as unknown as Record<string, unknown>)
+        }
       } else {
         const p: Produto = { id: gerarId(), nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante || undefined, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, fazenda_id: id, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
         await db.produtos.add(p)
@@ -163,6 +184,45 @@ export default function FazendaDetailPage() {
     if (!confirm(`Excluir produto "${p.nome}"?`)) return
     await getDB().produtos.delete(p.id)
     await loadData()
+  }
+
+  // ── Repor Estoque ──
+  async function reporEstoque() {
+    if (!reporProduto || !user || !reporForm.quantidade) return
+    setReporLoading(true)
+    try {
+      const db = getDB()
+      const now = new Date().toISOString()
+      const hoje = format(new Date(), 'yyyy-MM-dd')
+      const qtdAnterior = reporProduto.quantidade_disponivel ?? 0
+      const qtdAdicionada = Number(reporForm.quantidade)
+      const qtdNova = qtdAnterior + qtdAdicionada
+
+      const mov: EstoqueMovimentacao = {
+        id: gerarId(),
+        produto_id: reporProduto.id,
+        fazenda_id: id,
+        usuario_id: user.id,
+        tipo: 'entrada',
+        quantidade: qtdAdicionada,
+        quantidade_anterior: qtdAnterior,
+        quantidade_nova: qtdNova,
+        motivo: reporForm.motivo || undefined,
+        data: reporForm.data || hoje,
+        createdAt: now,
+      }
+      await db.estoqueMovimentacoes.add(mov)
+      await enqueueSync('estoqueMovimentacao', 'upsert', mov as unknown as Record<string, unknown>)
+
+      const updatedProd = { ...reporProduto, quantidade_disponivel: qtdNova, updatedAt: now }
+      await db.produtos.put(updatedProd)
+      await enqueueSync('produto', 'upsert', updatedProd as unknown as Record<string, unknown>)
+      processSyncQueue()
+
+      await loadData()
+      setReporModal(false)
+      setReporForm({ quantidade: '', motivo: '', data: '' })
+    } finally { setReporLoading(false) }
   }
 
   // ── PDF ──
@@ -334,43 +394,104 @@ export default function FazendaDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {produtos.map(p => (
-                <div key={p.id} className="card p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'hsl(270 60% 96%)' }}>
-                      <FlaskConical className="w-4 h-4" style={{ color: 'hsl(270 60% 55%)' }} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-medium text-sm" style={{ color: 'var(--fg)' }}>{p.nome}</h3>
-                        <span className={produtoTipoColor(p.tipo)}>{produtoTipoLabel(p.tipo)}</span>
+              {produtos.map(p => {
+                const prodMovs = movimentacoes.filter(m => m.produto_id === p.id).slice(0, 10)
+                const isExpanded = expandedProduto === p.id
+                return (
+                  <div key={p.id} className="card overflow-hidden">
+                    <div className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'hsl(270 60% 96%)' }}>
+                          <FlaskConical className="w-4 h-4" style={{ color: 'hsl(270 60% 55%)' }} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-medium text-sm" style={{ color: 'var(--fg)' }}>{p.nome}</h3>
+                            <span className={produtoTipoColor(p.tipo)}>{produtoTipoLabel(p.tipo)}</span>
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                            {p.fabricante ? `${p.fabricante} · ` : ''}Reaplicar a cada {p.prazo_medio_aplicacao} dias
+                          </p>
+                          {p.quantidade_disponivel != null && (
+                            <p className="text-xs mt-0.5 font-medium" style={{ color: p.quantidade_disponivel <= 5 ? 'hsl(0 72% 45%)' : 'hsl(160 84% 22%)' }}>
+                              Estoque: {p.quantidade_disponivel} {p.unidade_quantidade || 'un'}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
-                        {p.fabricante ? `${p.fabricante} · ` : ''}Reaplicar a cada {p.prazo_medio_aplicacao} dias
-                      </p>
-                      {p.quantidade_disponivel != null && (
-                        <p className="text-xs mt-0.5 font-medium" style={{ color: p.quantidade_disponivel <= 5 ? 'hsl(0 72% 45%)' : 'hsl(160 84% 22%)' }}>
-                          Estoque: {p.quantidade_disponivel} {p.unidade_quantidade || 'un'}
-                        </p>
-                      )}
+                      <div className="flex gap-0.5 items-center">
+                        <button
+                          onClick={() => { setReporProduto(p); setReporForm({ quantidade: '', motivo: '', data: '' }); setReporModal(true) }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition"
+                          style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}
+                          title="Repor estoque"
+                        >
+                          <Plus size={11} /> Repor
+                        </button>
+                        {prodMovs.length > 0 && (
+                          <button
+                            onClick={() => setExpandedProduto(isExpanded ? null : p.id)}
+                            className="p-1.5 rounded-lg transition"
+                            style={{ color: 'var(--fg-subtle)' }}
+                            title="Histórico de movimentações"
+                          >
+                            <History size={14} />
+                          </button>
+                        )}
+                        <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao.toString(), fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L' }); setProdutoModal(true) }}
+                          className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => deleteProduto(p)}
+                          className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'hsl(0 86% 95%)'; e.currentTarget.style.color = 'hsl(0 72% 51%)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Movement history */}
+                    {isExpanded && prodMovs.length > 0 && (
+                      <div style={{ borderTop: '1px solid var(--borda)', background: 'var(--bg)' }}>
+                        <div className="px-4 pt-3 pb-1 flex items-center gap-1.5">
+                          <TrendingUp size={12} style={{ color: 'var(--fg-subtle)' }} />
+                          <span className="text-[11px] font-semibold section-label">Histórico de movimentações</span>
+                        </div>
+                        <div className="px-4 pb-3 space-y-2">
+                          {prodMovs.map(m => {
+                            const [y, mo, d] = m.data.split('-').map(Number)
+                            const dateStr = format(new Date(y, mo - 1, d), 'dd/MM/yyyy')
+                            const isEntrada = m.tipo === 'entrada'
+                            const isSaida = m.tipo === 'saida'
+                            const color = isEntrada ? 'hsl(160 84% 22%)' : isSaida ? 'hsl(0 72% 45%)' : 'hsl(210 100% 40%)'
+                            const bg = isEntrada ? 'hsl(160 84% 22% / 0.08)' : isSaida ? 'hsl(0 86% 97%)' : 'hsl(210 100% 97%)'
+                            return (
+                              <div key={m.id} className="flex items-center gap-2 text-[11px]">
+                                <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: bg }}>
+                                  {isEntrada ? <ArrowUp size={10} style={{ color }} /> : isSaida ? <ArrowDown size={10} style={{ color }} /> : <ArrowLeftRight size={10} style={{ color }} />}
+                                </div>
+                                <span style={{ color: 'var(--fg-subtle)', minWidth: '70px' }}>{dateStr}</span>
+                                <span className="font-semibold" style={{ color }}>
+                                  {isEntrada ? '+' : isSaida ? '-' : '±'}{m.quantidade} {p.unidade_quantidade || 'un'}
+                                </span>
+                                <span style={{ color: 'var(--fg-subtle)' }}>
+                                  {m.quantidade_anterior} → {m.quantidade_nova}
+                                </span>
+                                {m.motivo && (
+                                  <span className="truncate" style={{ color: 'var(--fg-subtle)' }} title={m.motivo}>· {m.motivo}</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-0.5">
-                    <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao.toString(), fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L' }); setProdutoModal(true) }}
-                      className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => deleteProduto(p)}
-                      className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'hsl(0 86% 95%)'; e.currentTarget.style.color = 'hsl(0 72% 51%)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}>
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -444,6 +565,32 @@ export default function FazendaDetailPage() {
               </p>
             )}
           </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL REPOR ESTOQUE ── */}
+      <Modal
+        open={reporModal}
+        onClose={() => setReporModal(false)}
+        title={`Repor Estoque — ${reporProduto?.nome}`}
+        footer={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setReporModal(false)} className="flex-1">Cancelar</Button>
+            <Button onClick={reporEstoque} loading={reporLoading} disabled={!reporForm.quantidade} className="flex-1">Confirmar Entrada</Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {reporProduto && (
+            <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'hsl(160 84% 22% / 0.08)', color: 'hsl(160 84% 22%)' }}>
+              Estoque atual: <strong>{reporProduto.quantidade_disponivel ?? 0} {reporProduto.unidade_quantidade || 'un'}</strong>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Quantidade a adicionar" type="number" value={reporForm.quantidade} onChange={e => setReporForm(f => ({ ...f, quantidade: e.target.value }))} placeholder="Ex: 100" />
+            <Input label="Data de entrada" type="date" value={reporForm.data} onChange={e => setReporForm(f => ({ ...f, data: e.target.value }))} />
+          </div>
+          <Input label="Motivo / Nota fiscal (opcional)" value={reporForm.motivo} onChange={e => setReporForm(f => ({ ...f, motivo: e.target.value }))} placeholder="Ex: Compra NF 12345" />
         </div>
       </Modal>
 

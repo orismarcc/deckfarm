@@ -49,6 +49,17 @@ const STATUS_SEMEADURA_COLORS: Record<StatusSemeadura, { color: string; bg: stri
 // format() from date-fns uses LOCAL time → correct local date, no UTC-offset X-1 bug
 const TODAY = format(new Date(), 'yyyy-MM-dd')
 
+function calcularStatusLocal(proxima: string): Aplicacao['status'] {
+  const [y, m, d] = proxima.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const diff = Math.round((dt.getTime() - hoje.getTime()) / 86400000)
+  if (diff === 0) return 'hoje'
+  if (diff < 0) return 'atrasado'
+  if (diff <= 7) return 'proximo'
+  return 'dentro_do_prazo'
+}
+
 /** Portuguese ordinal for a sowing stage: 1 → "1ª", 2 → "2ª", etc. */
 function etapaOrdinal(n: number): string { return `${n}ª etapa` }
 
@@ -149,6 +160,8 @@ export default function TalhaoPage() {
   })
   const [fotos, setFotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  const [editingAplicacao, setEditingAplicacao] = useState<Aplicacao | null>(null)
 
   // UI state
   const [showPlanned, setShowPlanned] = useState(true)
@@ -327,21 +340,23 @@ export default function TalhaoPage() {
   }
 
   // ── Aplicação ────────────────────────────────────────────────────────────
-  function openAplicacaoModal(planejada?: Aplicacao) {
+  function openAplicacaoModal(planejada?: Aplicacao, editing?: Aplicacao) {
     setAplicacaoBase(planejada || null)
+    setEditingAplicacao(editing || null)
     setModalMode('produto')
     setSelectedRecomendacaoId('')
+    const src = editing || planejada
     setForm({
-      produto_id: planejada?.produto_id || '',
-      data_aplicacao: planejada?.data_aplicacao || TODAY,
-      dose: planejada?.dose?.toString() || '',
-      unidade_dose: planejada?.unidade_dose || 'L/ha',
-      area_aplicada: planejada?.area_aplicada?.toString() || '',
-      observacoes: planejada?.observacoes || '',
-      clima: planejada?.clima || '',
-      temperatura: planejada?.temperatura?.toString() || '',
+      produto_id: src?.produto_id || '',
+      data_aplicacao: src?.data_aplicacao || TODAY,
+      dose: src?.dose?.toString() || '',
+      unidade_dose: src?.unidade_dose || 'L/ha',
+      area_aplicada: src?.area_aplicada?.toString() || '',
+      observacoes: src?.observacoes || '',
+      clima: src?.clima || '',
+      temperatura: src?.temperatura?.toString() || '',
     })
-    setFotos([])
+    setFotos(editing?.fotos || [])
     setModalOpen(true)
   }
 
@@ -382,6 +397,39 @@ export default function TalhaoPage() {
     setLoading(true)
     try {
       const db = getDB()
+
+      // If editing an existing realizada application
+      if (editingAplicacao) {
+        const [ay, am, ad] = form.data_aplicacao.split('-').map(Number)
+        const novaProxima = format(addDays(new Date(ay, am - 1, ad), prod.prazo_medio_aplicacao), 'yyyy-MM-dd')
+        const now = new Date().toISOString()
+        const updated: Aplicacao = {
+          ...editingAplicacao,
+          produto_id: form.produto_id,
+          data_aplicacao: form.data_aplicacao,
+          proxima_aplicacao: novaProxima,
+          status: calcularStatusLocal(novaProxima),
+          dose: form.dose ? Number(form.dose) : undefined,
+          unidade_dose: form.unidade_dose,
+          area_aplicada: form.area_aplicada ? Number(form.area_aplicada) : talhao?.area,
+          observacoes: form.observacoes,
+          clima: form.clima,
+          temperatura: form.temperatura ? Number(form.temperatura) : undefined,
+          fotos: fotos.length > 0 ? fotos : editingAplicacao.fotos,
+          updatedAt: now,
+          _syncStatus: 'pending',
+        }
+        await db.aplicacoes.put(updated)
+        await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
+        processSyncQueue()
+        await loadData()
+        setModalOpen(false)
+        setEditingAplicacao(null)
+        setForm({ produto_id: '', data_aplicacao: TODAY, dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '' })
+        setFotos([])
+        return
+      }
+
       if (aplicacaoBase?.id && aplicacaoBase.tipo === 'planejada') {
         await db.aplicacoes.delete(aplicacaoBase.id)
       }
@@ -970,10 +1018,20 @@ export default function TalhaoPage() {
                             </p>
                           </div>
                         </div>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
-                          ✓ Realizada
-                        </span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
+                            ✓ Realizada
+                          </span>
+                          <button
+                            onClick={() => openAplicacaoModal(undefined, a)}
+                            className="p-1 rounded-lg transition"
+                            style={{ color: 'var(--fg-subtle)' }}
+                            title="Editar aplicação"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Detail pills */}
@@ -1313,14 +1371,14 @@ export default function TalhaoPage() {
       {/* ── Modal Aplicação ── */}
       <Modal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setAplicacaoBase(null); setModalMode('produto'); setSelectedRecomendacaoId('') }}
-        title={aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Aplicação' : 'Registrar Aplicação'}
+        onClose={() => { setModalOpen(false); setAplicacaoBase(null); setEditingAplicacao(null); setModalMode('produto'); setSelectedRecomendacaoId('') }}
+        title={editingAplicacao ? 'Editar Aplicação' : aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Aplicação' : 'Registrar Aplicação'}
         size="lg"
         footer={
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => { setModalOpen(false); setAplicacaoBase(null); setModalMode('produto'); setSelectedRecomendacaoId('') }} className="flex-1">Cancelar</Button>
+            <Button variant="outline" onClick={() => { setModalOpen(false); setAplicacaoBase(null); setEditingAplicacao(null); setModalMode('produto'); setSelectedRecomendacaoId('') }} className="flex-1">Cancelar</Button>
             <Button onClick={handleSaveAplicacao} loading={loading} disabled={!form.produto_id} className="flex-1">
-              {aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Realização' : 'Registrar'}
+              {editingAplicacao ? 'Salvar Alterações' : aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Realização' : 'Registrar'}
             </Button>
           </div>
         }
