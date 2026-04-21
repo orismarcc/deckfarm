@@ -38,8 +38,6 @@ export default function FazendasPage() {
   const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '', estado: '', cidade: '' })
   const [loading, setLoading] = useState(false)
   const [busca, setBusca] = useState('')
-  const [cidades, setCidades] = useState<string[]>([])
-  const [loadingCidades, setLoadingCidades] = useState(false)
   // weather sempre visível por card; botão permite ocultar se desejar
   const [weatherOculta, setWeatherOculta] = useState<Set<string>>(new Set())
 
@@ -58,17 +56,6 @@ export default function FazendasPage() {
   // Re-run when server pull completes so cross-device data appears immediately
   useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchCidades(uf: string) {
-    if (!uf) { setCidades([]); return }
-    setLoadingCidades(true)
-    try {
-      const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`)
-      const data: { nome: string }[] = await res.json()
-      setCidades(data.map(m => m.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')))
-    } catch { setCidades([]) }
-    finally { setLoadingCidades(false) }
-  }
-
   function openModal(f?: Fazenda) {
     if (f) {
       setEditando(f)
@@ -84,11 +71,9 @@ export default function FazendasPage() {
         estado,
         cidade,
       })
-      if (estado) fetchCidades(estado)
     } else {
       setEditando(null)
       setForm({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '', estado: '', cidade: '' })
-      setCidades([])
     }
     setModalOpen(true)
   }
@@ -360,8 +345,6 @@ export default function FazendasPage() {
                 onChange={e => {
                   const uf = e.target.value
                   setForm(f => ({ ...f, estado: uf, cidade: '' }))
-                  setCidades([])
-                  fetchCidades(uf)
                 }}
                 className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50"
                 style={{ background: 'var(--input-bg)' }}
@@ -375,26 +358,17 @@ export default function FazendasPage() {
             </div>
           </div>
 
-          {/* Cidade — select idêntico ao Estado, populado via IBGE */}
+          {/* Cidade — input de texto livre */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[--fg-muted] uppercase tracking-wide">Cidade</label>
-            <div className="relative">
-              <select
-                value={form.cidade}
-                onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
-                disabled={!form.estado || loadingCidades}
-                className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50 disabled:opacity-50"
-                style={{ background: 'var(--input-bg)' }}
-              >
-                <option value="">
-                  {!form.estado ? 'Selecione o estado primeiro' : loadingCidades ? 'Carregando cidades...' : 'Selecione a cidade'}
-                </option>
-                {cidades.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[--fg-subtle] pointer-events-none" />
-            </div>
+            <input
+              type="text"
+              value={form.cidade}
+              onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
+              placeholder="Ex: Confresa, Sinop, Sorriso..."
+              className="h-10 w-full rounded-xl border text-sm transition-all duration-150 pl-3 pr-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50"
+              style={{ background: 'var(--input-bg)', color: 'var(--fg)' }}
+            />
           </div>
           <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />
           <div className="grid grid-cols-2 gap-3">

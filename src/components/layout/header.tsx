@@ -88,14 +88,18 @@ export function Header({ title }: { title?: string }) {
             aria-label="Meu perfil"
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0"
+              className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[12px] font-bold flex-shrink-0"
               style={{
-                background: 'hsl(160 84% 22% / 0.12)',
+                background: user?.avatar ? 'transparent' : 'hsl(160 84% 22% / 0.12)',
                 border: '1.5px solid hsl(160 84% 22% / 0.3)',
                 color: 'hsl(160 84% 22%)',
               }}
             >
-              {initials}
+              {user?.avatar
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                : initials
+              }
             </div>
           </Link>
         </div>

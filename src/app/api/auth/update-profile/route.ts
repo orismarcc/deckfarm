@@ -15,16 +15,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const nome    = sanitizeString(body?.nome, 100)
     const apelido = sanitizeString(body?.apelido, 50)
+    // avatar is a base64 data URL — validate format, pass null to clear
+    const avatarRaw = body?.avatar
+    const avatarValue: string | null | undefined =
+      typeof avatarRaw === 'string' && avatarRaw.startsWith('data:image/') ? avatarRaw
+      : avatarRaw === null ? null
+      : undefined   // absent from body → don't touch the field
 
     if (!nome) {
       return NextResponse.json({ error: 'Nome obrigatório' }, { status: 400 })
     }
 
-    const updates = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {
       nome,
       apelido: apelido || null,
       updatedAt: new Date().toISOString(),
     }
+    if (avatarValue !== undefined) updates.avatar = avatarValue
 
     const supabase = createServerClient()
     if (!supabase) {

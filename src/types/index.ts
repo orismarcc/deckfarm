@@ -26,6 +26,7 @@ export interface User {
   id: string
   nome: string
   apelido?: string  // como quer ser chamado no app
+  avatar?: string   // base64 data URL for profile photo
   email: string
   senha?: string
   tipo: UserRole

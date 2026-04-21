@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useThemeStore, applyTheme, type Theme } from '@/store/theme'
 import {
   User, Lock, Sun, Moon, Monitor, CheckCircle2, AlertCircle,
-  ChevronLeft, Eye, EyeOff, LogOut, Bell
+  ChevronLeft, Eye, EyeOff, LogOut, Bell, Camera, X
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -95,6 +95,27 @@ function SaveBtn({ loading, label = 'Salvar' }: { loading: boolean; label?: stri
   )
 }
 
+/* ── Resize image via Canvas → base64 JPEG ─────────────────────── */
+function resizeImage(file: File, maxPx = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(maxPx / img.width, maxPx / img.height, 1)
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 /* ════════════════════════════════════════════════════════════════ */
 export default function PerfilPage() {
   const router = useRouter()
@@ -103,6 +124,64 @@ export default function PerfilPage() {
 
   // Apply saved theme on mount
   useEffect(() => { applyTheme(theme) }, [theme])
+
+  /* ── Avatar / foto de perfil ─── */
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar || null)
+  const [avatarLoad, setAvatarLoad] = useState(false)
+  const [avatarFeed, setAvatarFeed] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+  // keep preview in sync if another tab updates the store
+  useEffect(() => { setAvatarPreview(user?.avatar || null) }, [user?.avatar])
+
+  const handleAvatarFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setAvatarFeed({ type: 'error', msg: 'Selecione um arquivo de imagem (JPG, PNG, etc).' })
+      return
+    }
+    setAvatarLoad(true); setAvatarFeed(null)
+    try {
+      const dataUrl = await resizeImage(file, 200)
+      setAvatarPreview(dataUrl)
+      // persist locally immediately
+      updateUser({ avatar: dataUrl })
+      // sync to server
+      const res = await fetch('/api/auth/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nome: user?.nome, apelido: user?.apelido, avatar: dataUrl }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setAvatarFeed({ type: 'error', msg: data.error || 'Erro ao salvar foto.' })
+      } else {
+        setAvatarFeed({ type: 'success', msg: 'Foto de perfil atualizada!' })
+      }
+    } catch {
+      setAvatarFeed({ type: 'error', msg: 'Não foi possível processar a imagem.' })
+    } finally {
+      setAvatarLoad(false)
+      // reset input so the same file can be reselected
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [token, user?.nome, user?.apelido, updateUser])
+
+  async function removeAvatar() {
+    setAvatarLoad(true); setAvatarFeed(null)
+    try {
+      updateUser({ avatar: undefined })
+      setAvatarPreview(null)
+      await fetch('/api/auth/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nome: user?.nome, apelido: user?.apelido, avatar: null }),
+      })
+      setAvatarFeed({ type: 'success', msg: 'Foto removida.' })
+    } catch { /* silent */ }
+    finally { setAvatarLoad(false) }
+  }
 
   /* ── Nome / Apelido ─── */
   const [nome,     setNome]     = useState(user?.nome || '')
@@ -155,7 +234,7 @@ export default function PerfilPage() {
     } finally { setPwdLoad(false) }
   }
 
-  /* ── Notif toggle (3rd basic feature) ─── */
+  /* ── Notif toggle ─── */
   const [notifSound, setNotifSound] = useState(() => {
     if (typeof localStorage === 'undefined') return true
     return localStorage.getItem('deckfarm-notif-sound') !== 'false'
@@ -219,24 +298,80 @@ export default function PerfilPage() {
 
       {/* ── Avatar card ──────────────────────────────────────── */}
       <div className="animate-enter-1 card p-5 flex items-center gap-4 mb-5">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold flex-shrink-0"
-          style={{
-            background: 'hsl(160 84% 22% / 0.12)',
-            border: '2px solid hsl(160 84% 22% / 0.25)',
-            color: 'hsl(160 84% 22%)',
-          }}
-        >
-          {initials}
+        {/* Avatar com botão de câmera */}
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={avatarLoad}
+            className="relative w-16 h-16 rounded-full overflow-hidden flex items-center justify-center group transition-all"
+            style={{
+              background: avatarPreview ? 'transparent' : 'hsl(160 84% 22% / 0.12)',
+              border: '2px solid hsl(160 84% 22% / 0.25)',
+              cursor: avatarLoad ? 'not-allowed' : 'pointer',
+            }}
+            title="Alterar foto de perfil"
+          >
+            {avatarPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarPreview} alt="Foto de perfil" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-2xl font-bold" style={{ color: 'hsl(160 84% 22%)' }}>{initials}</span>
+            )}
+            {/* overlay on hover */}
+            <div
+              className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: 'rgba(0,0,0,0.45)' }}
+            >
+              {avatarLoad
+                ? <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                : <Camera size={18} className="text-white" />
+              }
+            </div>
+          </button>
+
+          {/* Botão remover foto */}
+          {avatarPreview && !avatarLoad && (
+            <button
+              type="button"
+              onClick={removeAvatar}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all"
+              style={{ background: 'hsl(4 72% 50%)', border: '1.5px solid white', color: 'white' }}
+              title="Remover foto"
+            >
+              <X size={10} />
+            </button>
+          )}
+
+          {/* input oculto */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarFile}
+          />
         </div>
+
         <div className="flex-1 min-w-0">
           <div className="font-bold text-base truncate" style={{ color: 'var(--fg)' }}>{user?.nome}</div>
           <div className="text-sm truncate" style={{ color: 'var(--fg-muted)' }}>{user?.email}</div>
-          <div className="mt-1.5">
-            <span className="badge-status badge-success text-[10px]">
-              ✓ Conta ativa
-            </span>
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+            <span className="badge-status badge-success text-[10px]">✓ Conta ativa</span>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-[11px] font-medium"
+              style={{ color: 'hsl(160 84% 22%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              {avatarPreview ? 'Trocar foto' : '+ Adicionar foto'}
+            </button>
           </div>
+          {avatarFeed && (
+            <div className="mt-2">
+              <Feedback {...avatarFeed} />
+            </div>
+          )}
         </div>
       </div>
 
