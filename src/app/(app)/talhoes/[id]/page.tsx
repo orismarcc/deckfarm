@@ -971,7 +971,7 @@ export default function TalhaoPage() {
           onClick={() => setShowHistory(v => !v)}
         >
           <div className="flex items-center gap-2">
-            <p className="section-label" style={{ margin: 0 }}>Histórico</p>
+            <p className="section-label" style={{ margin: 0 }}>Aplicações</p>
             {realizadas.length > 0 && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                 style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
@@ -1005,16 +1005,42 @@ export default function TalhaoPage() {
                 const qtdUsada = (a.dose && areaApl) ? Number((a.dose * areaApl).toFixed(2)) : null
                 const unidade = a.unidade_dose?.split('/')[0] ?? ''
                 const [ay, am, ad] = a.data_aplicacao.split('-').map(Number)
+                const isRealizada = a.tipo === 'realizada'
+                const borderColor = isRealizada
+                  ? 'hsl(160 84% 22%)'
+                  : a.status === 'atrasado' ? 'hsl(4 72% 50%)'
+                  : a.status === 'hoje' ? 'hsl(210 100% 45%)'
+                  : a.status === 'proximo' ? 'hsl(38 70% 40%)'
+                  : 'hsl(160 70% 42%)'
+                const iconColor = isRealizada
+                  ? 'hsl(160 84% 22%)'
+                  : a.status === 'atrasado' ? 'hsl(4 72% 45%)'
+                  : a.status === 'hoje' ? 'hsl(210 100% 40%)'
+                  : a.status === 'proximo' ? 'hsl(32 95% 40%)'
+                  : 'hsl(160 84% 22%)'
+                const iconBg = isRealizada
+                  ? 'hsl(160 84% 22% / 0.1)'
+                  : a.status === 'atrasado' ? 'hsl(4 86% 96%)'
+                  : a.status === 'hoje' ? 'hsl(210 100% 96%)'
+                  : a.status === 'proximo' ? 'hsl(45 100% 93%)'
+                  : 'hsl(160 84% 22% / 0.08)'
+                const badgeText = isRealizada
+                  ? '✓ Realizada'
+                  : a.status === 'atrasado' ? 'Atrasada'
+                  : a.status === 'hoje' ? 'Hoje'
+                  : 'Agendada'
                 return (
                   <div key={a.id} className="animate-enter card overflow-hidden"
-                    style={{ animationDelay: `${(i + 3) * 50}ms`, borderLeft: '3px solid hsl(160 84% 22%)' }}>
+                    style={{ animationDelay: `${(i + 3) * 50}ms`, borderLeft: `3px solid ${borderColor}` }}>
                     <div className="px-4 py-3">
                       {/* Header */}
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ background: 'hsl(160 84% 22% / 0.1)' }}>
-                            <CheckCircle2 size={13} style={{ color: 'hsl(160 84% 22%)' }} />
+                            style={{ background: iconBg }}>
+                            {isRealizada
+                              ? <CheckCircle2 size={13} style={{ color: iconColor }} />
+                              : <Clock3 size={13} style={{ color: iconColor }} />}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>
@@ -1027,8 +1053,8 @@ export default function TalhaoPage() {
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                            style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
-                            ✓ Realizada
+                            style={{ background: iconBg, color: iconColor }}>
+                            {badgeText}
                           </span>
                           <button
                             onClick={() => openAplicacaoModal(undefined, a)}

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
@@ -10,17 +10,38 @@ import { WeatherWidget } from '@/components/weather/weather-widget'
 import { gerarId, culturaIcon } from '@/lib/utils'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import type { Fazenda, Talhao, Aplicacao } from '@/types'
-import { Plus, MapPin, Leaf, AlertTriangle, Clock, CheckCircle, Trash2, Edit3, ChevronRight, Search, Cloud } from 'lucide-react'
+import { Plus, MapPin, Leaf, AlertTriangle, Clock, CheckCircle, Trash2, Edit3, ChevronRight, Search, Cloud, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
+
+const ESTADOS_BR = [
+  { uf: 'AC', nome: 'Acre' }, { uf: 'AL', nome: 'Alagoas' },
+  { uf: 'AP', nome: 'Amapá' }, { uf: 'AM', nome: 'Amazonas' },
+  { uf: 'BA', nome: 'Bahia' }, { uf: 'CE', nome: 'Ceará' },
+  { uf: 'DF', nome: 'Distrito Federal' }, { uf: 'ES', nome: 'Espírito Santo' },
+  { uf: 'GO', nome: 'Goiás' }, { uf: 'MA', nome: 'Maranhão' },
+  { uf: 'MT', nome: 'Mato Grosso' }, { uf: 'MS', nome: 'Mato Grosso do Sul' },
+  { uf: 'MG', nome: 'Minas Gerais' }, { uf: 'PA', nome: 'Pará' },
+  { uf: 'PB', nome: 'Paraíba' }, { uf: 'PR', nome: 'Paraná' },
+  { uf: 'PE', nome: 'Pernambuco' }, { uf: 'PI', nome: 'Piauí' },
+  { uf: 'RJ', nome: 'Rio de Janeiro' }, { uf: 'RN', nome: 'Rio Grande do Norte' },
+  { uf: 'RS', nome: 'Rio Grande do Sul' }, { uf: 'RO', nome: 'Rondônia' },
+  { uf: 'RR', nome: 'Roraima' }, { uf: 'SC', nome: 'Santa Catarina' },
+  { uf: 'SP', nome: 'São Paulo' }, { uf: 'SE', nome: 'Sergipe' },
+  { uf: 'TO', nome: 'Tocantins' },
+]
 
 export default function FazendasPage() {
   const { user } = useAuthStore()
   const { fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, addFazenda, updateFazenda, deleteFazenda, lastServerSyncAt } = useAppStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState<Fazenda | null>(null)
-  const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '' })
+  const [form, setForm] = useState({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '', estado: '', cidade: '' })
   const [loading, setLoading] = useState(false)
   const [busca, setBusca] = useState('')
+  const [cidades, setCidades] = useState<string[]>([])
+  const [loadingCidades, setLoadingCidades] = useState(false)
+  const [showCidadeSugg, setShowCidadeSugg] = useState(false)
+  const cidadeWrapRef = useRef<HTMLDivElement>(null)
   // weather sempre visível por card; botão permite ocultar se desejar
   const [weatherOculta, setWeatherOculta] = useState<Set<string>>(new Set())
 
@@ -39,32 +60,62 @@ export default function FazendasPage() {
   // Re-run when server pull completes so cross-device data appears immediately
   useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function fetchCidades(uf: string) {
+    if (!uf) { setCidades([]); return }
+    setLoadingCidades(true)
+    try {
+      const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`)
+      const data: { nome: string }[] = await res.json()
+      setCidades(data.map(m => m.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')))
+    } catch { setCidades([]) }
+    finally { setLoadingCidades(false) }
+  }
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (cidadeWrapRef.current && !cidadeWrapRef.current.contains(e.target as Node)) {
+        setShowCidadeSugg(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
+
   function openModal(f?: Fazenda) {
     if (f) {
       setEditando(f)
+      const parts = (f.localizacao || '').split(' - ')
+      const cidade = parts[0]?.trim() || ''
+      const estado = parts[1]?.trim() || ''
       setForm({
         nome: f.nome, localizacao: f.localizacao,
         nome_produtor: f.nome_produtor || '',
         area_total: f.area_total?.toString() || '',
         latitude: f.latitude?.toString() || '',
         longitude: f.longitude?.toString() || '',
+        estado,
+        cidade,
       })
+      if (estado) fetchCidades(estado)
     } else {
       setEditando(null)
-      setForm({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '' })
+      setForm({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '', estado: '', cidade: '' })
+      setCidades([])
     }
+    setShowCidadeSugg(false)
     setModalOpen(true)
   }
 
   async function handleSave() {
-    if (!user || !form.nome || !form.localizacao) return
+    const localizacao = [form.cidade, form.estado].filter(Boolean).join(' - ')
+    if (!user || !form.nome || !localizacao) return
     setLoading(true)
     try {
       const db = getDB()
       const now = new Date().toISOString()
       const base = {
         nome: form.nome,
-        localizacao: form.localizacao,
+        localizacao,
         nome_produtor: form.nome_produtor || undefined,
         area_total: form.area_total ? Number(form.area_total) : undefined,
         latitude: form.latitude ? Number(form.latitude) : undefined,
@@ -313,7 +364,84 @@ export default function FazendasPage() {
         <div className="space-y-4">
           <Input label="Nome da fazenda" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Fazenda Santa Rita" required />
           <Input label="Nome do produtor" value={form.nome_produtor} onChange={e => setForm(f => ({ ...f, nome_produtor: e.target.value }))} placeholder="Ex: João da Silva" />
-          <Input label="Localização / Município" value={form.localizacao} onChange={e => setForm(f => ({ ...f, localizacao: e.target.value }))} placeholder="Ex: Confresa - MT" required />
+          {/* Estado */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[--fg-muted] uppercase tracking-wide">Estado</label>
+            <div className="relative">
+              <select
+                value={form.estado}
+                onChange={e => {
+                  const uf = e.target.value
+                  setForm(f => ({ ...f, estado: uf, cidade: '' }))
+                  setCidades([])
+                  setShowCidadeSugg(false)
+                  fetchCidades(uf)
+                }}
+                className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50"
+                style={{ background: 'var(--input-bg)' }}
+              >
+                <option value="">Selecione o estado</option>
+                {ESTADOS_BR.map(e => (
+                  <option key={e.uf} value={e.uf}>{e.uf} — {e.nome}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[--fg-subtle] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Cidade autocomplete */}
+          <div className="flex flex-col gap-1.5" ref={cidadeWrapRef}>
+            <label className="text-xs font-semibold text-[--fg-muted] uppercase tracking-wide">Cidade</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={form.cidade}
+                onChange={e => {
+                  const v = e.target.value
+                  setForm(f => ({ ...f, cidade: v }))
+                  if (v.length >= 2 && cidades.length > 0) {
+                    setShowCidadeSugg(true)
+                  } else {
+                    setShowCidadeSugg(false)
+                  }
+                }}
+                onKeyDown={e => { if (e.key === 'Escape') setShowCidadeSugg(false) }}
+                onFocus={() => { if (form.cidade.length >= 2 && cidades.length > 0) setShowCidadeSugg(true) }}
+                placeholder={loadingCidades ? 'Carregando cidades...' : form.estado ? 'Digite o nome da cidade' : 'Selecione o estado primeiro'}
+                disabled={!form.estado || loadingCidades}
+                className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 pl-3 pr-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50 disabled:opacity-50"
+                style={{ background: 'var(--input-bg)' }}
+              />
+              {showCidadeSugg && (() => {
+                const sugg = cidades
+                  .filter(c => c.toLowerCase().includes(form.cidade.toLowerCase()))
+                  .slice(0, 6)
+                return sugg.length > 0 ? (
+                  <ul
+                    className="absolute z-50 w-full mt-1 rounded-xl border overflow-hidden shadow-lg"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--borda)' }}
+                  >
+                    {sugg.map(c => (
+                      <li
+                        key={c}
+                        className="px-3 py-2 text-sm cursor-pointer transition-colors"
+                        style={{ color: 'var(--fg)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        onMouseDown={e => {
+                          e.preventDefault()
+                          setForm(f => ({ ...f, cidade: c }))
+                          setShowCidadeSugg(false)
+                        }}
+                      >
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null
+              })()}
+            </div>
+          </div>
           <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Latitude (opcional)" type="number" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="Ex: -10.9333" />
