@@ -1,12 +1,14 @@
 'use client'
+import { useState } from 'react'
 import { cn, formatDate, culturaLabel, culturaIcon, produtoTipoLabel, diasParaProxima } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { Aplicacao } from '@/types'
-import { Calendar, Droplets, MapPin, FlaskConical, Package, Ruler } from 'lucide-react'
+import { Calendar, Droplets, MapPin, FlaskConical, Package, Ruler, Trash2 } from 'lucide-react'
 
 interface AplicacaoCardProps {
   aplicacao: Aplicacao
   showTalhao?: boolean
+  onDelete?: () => void
 }
 
 const accentMap: Record<string, { color: string; bg: string }> = {
@@ -16,7 +18,8 @@ const accentMap: Record<string, { color: string; bg: string }> = {
   dentro_do_prazo: { color: 'hsl(160 84% 22%)',   bg: 'hsl(160 84% 96%)' },
 }
 
-export function AplicacaoCard({ aplicacao, showTalhao = true }: AplicacaoCardProps) {
+export function AplicacaoCard({ aplicacao, showTalhao = true, onDelete }: AplicacaoCardProps) {
+  const [confirming, setConfirming] = useState(false)
   const dias = diasParaProxima(aplicacao.proxima_aplicacao)
   const acc = accentMap[aplicacao.status] || accentMap.dentro_do_prazo
 
@@ -66,7 +69,40 @@ export function AplicacaoCard({ aplicacao, showTalhao = true }: AplicacaoCardPro
               </p>
             </div>
           </div>
-          <StatusBadge status={aplicacao.status} />
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <StatusBadge status={aplicacao.status} />
+            {onDelete && (
+              confirming ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setConfirming(false); onDelete() }}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                    style={{ background: 'hsl(4 72% 50%)', color: 'white' }}
+                  >
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => setConfirming(false)}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                    style={{ background: 'var(--bg-dark)', color: 'var(--fg-muted)' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirming(true)}
+                  className="p-1.5 rounded-lg transition-all"
+                  style={{ color: 'var(--fg-subtle)' }}
+                  title="Remover aplicação"
+                  onMouseEnter={e => { e.currentTarget.style.background = 'hsl(4 86% 96%)'; e.currentTarget.style.color = 'hsl(4 72% 45%)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
+                >
+                  <Trash2 size={13} />
+                </button>
+              )
+            )}
+          </div>
         </div>
 
         {/* Talhão chip */}

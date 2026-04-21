@@ -54,6 +54,12 @@ export default function AplicacoesPage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function handleDelete(id: string) {
+    const db = getDB()
+    await db.aplicacoes.delete(id)
+    setAplicacoes(prev => prev.filter(a => a.id !== id))
+  }
+
   const fazendaOptions = [
     { value: '', label: 'Todas as fazendas' },
     ...fazendas.map(f => ({ value: f.id, label: f.nome })),
@@ -123,7 +129,7 @@ export default function AplicacoesPage() {
         <div className="space-y-3">
           {filtered.map((a, i) => (
             <div key={a.id} className="animate-enter" style={{ animationDelay: `${(i + 3) * 45}ms` }}>
-              <AplicacaoCard aplicacao={a} />
+              <AplicacaoCard aplicacao={a} onDelete={() => handleDelete(a.id)} />
             </div>
           ))}
         </div>

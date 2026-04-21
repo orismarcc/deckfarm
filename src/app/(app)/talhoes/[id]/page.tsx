@@ -18,7 +18,7 @@ import { PhotoPicker } from '@/components/ui/photo-picker'
 import {
   ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar,
   Sprout, CheckCircle2, Clock3, ChevronDown, ChevronUp, Pencil, RotateCcw,
-  CloudRain, StickyNote, Droplets, Layers,
+  CloudRain, StickyNote, Droplets, Layers, Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { addDays, differenceInDays, parseISO, format, subDays } from 'date-fns'
@@ -163,6 +163,7 @@ export default function TalhaoPage() {
   const [loading, setLoading] = useState(false)
 
   const [editingAplicacao, setEditingAplicacao] = useState<Aplicacao | null>(null)
+  const [deletingApId, setDeletingApId] = useState<string | null>(null)
 
   // UI state
   const [showPlanned, setShowPlanned] = useState(true)
@@ -364,6 +365,13 @@ export default function TalhaoPage() {
     })
     setFotos(editing?.fotos || [])
     setModalOpen(true)
+  }
+
+  async function handleDeleteAplicacao(aplicacaoId: string) {
+    const db = getDB()
+    await db.aplicacoes.delete(aplicacaoId)
+    setAplicacoes(prev => prev.filter(a => a.id !== aplicacaoId))
+    setDeletingApId(null)
   }
 
   async function handleSelectRecomendacao(recId: string) {
@@ -949,13 +957,46 @@ export default function TalhaoPage() {
                         </span>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => openAplicacaoModal(a)}
-                      style={{ background: 'hsl(160 84% 22%)', color: 'white', fontSize: '11px', padding: '0.35rem 0.75rem' }}
-                    >
-                      <CheckCircle2 size={12} /> Realizar
-                    </Button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {deletingApId === a.id ? (
+                        <>
+                          <button
+                            onClick={() => handleDeleteAplicacao(a.id)}
+                            className="text-[10px] font-bold px-2 py-1 rounded-lg"
+                            style={{ background: 'hsl(4 72% 50%)', color: 'white' }}
+                          >
+                            Excluir
+                          </button>
+                          <button
+                            onClick={() => setDeletingApId(null)}
+                            className="text-[10px] font-bold px-2 py-1 rounded-lg"
+                            style={{ background: 'var(--bg-dark)', color: 'var(--fg-muted)' }}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setDeletingApId(a.id)}
+                            className="p-1.5 rounded-lg transition-all"
+                            style={{ color: 'var(--fg-subtle)' }}
+                            title="Remover"
+                            onMouseEnter={e => { e.currentTarget.style.background = 'hsl(4 86% 96%)'; e.currentTarget.style.color = 'hsl(4 72% 45%)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <Button
+                            size="sm"
+                            onClick={() => openAplicacaoModal(a)}
+                            style={{ background: 'hsl(160 84% 22%)', color: 'white', fontSize: '11px', padding: '0.35rem 0.75rem' }}
+                          >
+                            <CheckCircle2 size={12} /> Realizar
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -1056,14 +1097,45 @@ export default function TalhaoPage() {
                             style={{ background: iconBg, color: iconColor }}>
                             {badgeText}
                           </span>
-                          <button
-                            onClick={() => openAplicacaoModal(undefined, a)}
-                            className="p-1 rounded-lg transition"
-                            style={{ color: 'var(--fg-subtle)' }}
-                            title="Editar aplicação"
-                          >
-                            <Pencil size={12} />
-                          </button>
+                          {deletingApId === a.id ? (
+                            <>
+                              <button
+                                onClick={() => handleDeleteAplicacao(a.id)}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                                style={{ background: 'hsl(4 72% 50%)', color: 'white' }}
+                              >
+                                Excluir
+                              </button>
+                              <button
+                                onClick={() => setDeletingApId(null)}
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg"
+                                style={{ background: 'var(--bg-dark)', color: 'var(--fg-muted)' }}
+                              >
+                                ✕
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openAplicacaoModal(undefined, a)}
+                                className="p-1 rounded-lg transition"
+                                style={{ color: 'var(--fg-subtle)' }}
+                                title="Editar aplicação"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => setDeletingApId(a.id)}
+                                className="p-1 rounded-lg transition-all"
+                                style={{ color: 'var(--fg-subtle)' }}
+                                title="Remover aplicação"
+                                onMouseEnter={e => { e.currentTarget.style.background = 'hsl(4 86% 96%)'; e.currentTarget.style.color = 'hsl(4 72% 45%)' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--fg-subtle)' }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
