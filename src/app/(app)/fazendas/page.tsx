@@ -382,12 +382,12 @@ export default function FazendasPage() {
               <select
                 value={form.cidade}
                 onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
-                disabled={!form.estado || loadingCidades || cidades.length === 0}
+                disabled={!form.estado || loadingCidades}
                 className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50 disabled:opacity-50"
                 style={{ background: 'var(--input-bg)' }}
               >
                 <option value="">
-                  {loadingCidades ? 'Carregando...' : !form.estado ? 'Selecione o estado primeiro' : 'Selecione a cidade'}
+                  {!form.estado ? 'Selecione o estado primeiro' : loadingCidades ? 'Carregando cidades...' : 'Selecione a cidade'}
                 </option>
                 {cidades.map(c => (
                   <option key={c} value={c}>{c}</option>
