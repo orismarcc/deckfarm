@@ -8,26 +8,32 @@ import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import type { Aplicacao } from '@/types'
 import {
   AlertTriangle, Clock, CheckCircle2, Calendar, MapPin, Leaf, Plus,
-  ChevronRight, RefreshCw, Sprout, TrendingUp, BarChart3
+  ChevronRight, RefreshCw, Sprout, TrendingUp, BarChart3, Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 
-interface StatProps { label: string; value: number; icon: React.ElementType; color: string; bg: string; border: string }
-function StatCard({ label, value, icon: Icon, color, bg, border }: StatProps) {
+// ── Clickable stat card ───────────────────────────────────────────────────────
+interface StatProps {
+  label: string; value: number
+  icon: React.ElementType; color: string; bg: string; border: string
+  href: string
+}
+function StatCard({ label, value, icon: Icon, color, bg, border, href }: StatProps) {
   return (
-    <div className="card p-4 flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <div className="icon-sq w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: bg }}>
-          <Icon size={16} style={{ color }} />
+    <Link href={href} className="block group">
+      <div className="card p-4 flex flex-col gap-3 transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-[var(--shadow-md)] cursor-pointer">
+        <div className="flex items-start justify-between">
+          <div className="icon-sq w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: bg }}>
+            <Icon size={16} style={{ color }} />
+          </div>
+          <span className="text-[1.75rem] font-bold leading-none" style={{ color: 'var(--fg)' }}>{value}</span>
         </div>
-        <span className="text-[1.75rem] font-bold leading-none" style={{ color: 'var(--fg)' }}>{value}</span>
+        <div>
+          <p className="text-[0.8125rem] font-semibold" style={{ color: 'var(--fg-muted)' }}>{label}</p>
+        </div>
+        <div className="h-[3px] rounded-full" style={{ background: border, opacity: 0.35 }} />
       </div>
-      <div>
-        <p className="text-[0.8125rem] font-semibold" style={{ color: 'var(--fg-muted)' }}>{label}</p>
-      </div>
-      {/* accent bar */}
-      <div className="h-[3px] rounded-full" style={{ background: border, opacity: 0.35 }} />
-    </div>
+    </Link>
   )
 }
 
@@ -60,9 +66,7 @@ export default function DashboardPage() {
     } finally { setLoading(false) }
   }, [user, setStats, setFazendas, setTalhoes, setAplicacoes, setNotificacoes])
 
-  // Initial load from local Dexie
   useEffect(() => { loadData() }, [loadData])
-  // Re-run whenever the server pull completes (new data may have arrived)
   useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
@@ -132,36 +136,41 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-8">
 
-          {/* ── Stats grid ─── */}
+          {/* ── Stats grid — every card links to its filtered aplicações ─── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="animate-enter-2">
               <StatCard label="Atrasadas" value={stats?.atrasadas || 0} icon={AlertTriangle}
-                color="hsl(4 72% 50%)" bg="hsl(4 86% 96%)" border="hsl(4 72% 50%)" />
+                color="hsl(4 72% 50%)" bg="hsl(4 86% 96%)" border="hsl(4 72% 50%)"
+                href="/aplicacoes?status=atrasado" />
             </div>
             <div className="animate-enter-3">
               <StatCard label="Para hoje" value={stats?.hoje || 0} icon={Clock}
-                color="hsl(210 100% 45%)" bg="hsl(210 100% 96%)" border="hsl(210 100% 45%)" />
+                color="hsl(210 100% 45%)" bg="hsl(210 100% 96%)" border="hsl(210 100% 45%)"
+                href="/aplicacoes?status=hoje" />
             </div>
             <div className="animate-enter-4">
               <StatCard label="Esta semana" value={stats?.proximas || 0} icon={Calendar}
-                color="hsl(38 70% 40%)" bg="hsl(38 92% 95%)" border="hsl(38 92% 46%)" />
+                color="hsl(38 70% 40%)" bg="hsl(38 92% 95%)" border="hsl(38 92% 46%)"
+                href="/aplicacoes?status=proximo" />
             </div>
             <div className="animate-enter-5">
               <StatCard label="No prazo" value={stats?.dentro_prazo || 0} icon={CheckCircle2}
-                color="hsl(160 84% 22%)" bg="var(--verde-50)" border="var(--verde-500)" />
+                color="hsl(160 84% 22%)" bg="var(--verde-50)" border="var(--verde-500)"
+                href="/aplicacoes?status=dentro_do_prazo" />
             </div>
           </div>
 
-          {/* ── Overview strip ─── */}
+          {/* ── Overview strip — clickable ─── */}
           <div className="animate-enter-3 flex flex-wrap gap-2.5">
             {[
-              { icon: MapPin, label: 'Fazendas', value: stats?.total_fazendas },
-              { icon: Leaf, label: 'Talhões', value: stats?.total_talhoes },
-              { icon: BarChart3, label: 'Aplicações', value: stats?.total_aplicacoes },
-            ].map(({ icon: Icon, label, value }) => (
-              <div
+              { icon: MapPin,    label: 'Fazendas',   value: stats?.total_fazendas,   href: '/fazendas' },
+              { icon: Leaf,      label: 'Talhões',    value: stats?.total_talhoes,    href: '/fazendas' },
+              { icon: BarChart3, label: 'Aplicações', value: stats?.total_aplicacoes, href: '/aplicacoes' },
+            ].map(({ icon: Icon, label, value, href }) => (
+              <Link
                 key={label}
-                className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl"
+                href={href}
+                className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--borda)', boxShadow: 'var(--shadow-xs)' }}
               >
                 <div className="icon-sq w-7 h-7 icon-sq-verde rounded-lg flex items-center justify-center">
@@ -169,35 +178,36 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-[1.0625rem] font-bold" style={{ color: 'var(--fg)' }}>{value}</span>
                 <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>{label}</span>
-              </div>
+                <ChevronRight size={12} style={{ color: 'var(--fg-subtle)' }} />
+              </Link>
             ))}
           </div>
 
           {/* ── Alert banner ─── */}
           {(stats?.atrasadas || 0) > 0 && (
-            <div
-              className="animate-enter-3 flex items-start gap-3 p-4 rounded-2xl"
-              style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 88%)' }}
-            >
-              <div className="icon-sq w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: 'hsl(4 86% 93%)', color: 'hsl(4 72% 50%)' }}>
-                <AlertTriangle size={15} />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-sm" style={{ color: 'hsl(4 72% 30%)' }}>
-                  Atenção agronômica
-                </p>
-                <p className="text-sm mt-0.5 leading-relaxed" style={{ color: 'hsl(4 72% 42%)' }}>
-                  {stats?.atrasadas} aplicação{(stats?.atrasadas ?? 0) !== 1 ? 'ões' : ''} em atraso.
-                  Verifique os talhões e regularize o manejo.
-                </p>
-              </div>
-              <Link href="/aplicacoes">
+            <Link href="/aplicacoes?status=atrasado">
+              <div
+                className="animate-enter-3 flex items-start gap-3 p-4 rounded-2xl transition-all hover:shadow-[var(--shadow-md)]"
+                style={{ background: 'hsl(4 80% 97%)', border: '1px solid hsl(4 72% 88%)' }}
+              >
+                <div className="icon-sq w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'hsl(4 86% 93%)', color: 'hsl(4 72% 50%)' }}>
+                  <AlertTriangle size={15} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm" style={{ color: 'hsl(4 72% 30%)' }}>
+                    Atenção agronômica
+                  </p>
+                  <p className="text-sm mt-0.5 leading-relaxed" style={{ color: 'hsl(4 72% 42%)' }}>
+                    {stats?.atrasadas} aplicação{(stats?.atrasadas ?? 0) !== 1 ? 'ões' : ''} em atraso.
+                    Verifique os talhões e regularize o manejo.
+                  </p>
+                </div>
                 <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'hsl(4 72% 45%)' }}>
                   Ver →
                 </span>
-              </Link>
-            </div>
+              </div>
+            </Link>
           )}
 
           {/* ── Urgent applications ─── */}
@@ -234,25 +244,79 @@ export default function DashboardPage() {
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {fazendas.map(f => {
-                  const talhoesF = talhoes.filter(t => t.fazenda_id === f.id)
-                  const appsF = aplicacoes.filter(a => talhoesF.some(t => t.id === a.talhao_id))
+                  const talhoesF  = talhoes.filter(t => t.fazenda_id === f.id)
+                  const appsF     = aplicacoes.filter(a => talhoesF.some(t => t.id === a.talhao_id))
                   const atrasadas = appsF.filter(a => a.status === 'atrasado').length
+                  const hoje      = appsF.filter(a => a.status === 'hoje').length
+                  const comPlantio = talhoesF.filter(t => t.data_plantio).length
+
+                  // Sowing progress
+                  const totalArea    = talhoesF.reduce((s, t) => s + (t.area || 0), 0)
+                  const totalSemeado = talhoesF.reduce((s, t) => s + (t.area_semeada || 0), 0)
+                  const pctSemeado   = totalArea > 0 && totalSemeado > 0
+                    ? Math.min(100, Math.round((totalSemeado / totalArea) * 100))
+                    : 0
+                  const semFinalizada = pctSemeado >= 100
+
                   return (
                     <Link key={f.id} href={`/fazendas/${f.id}`}>
                       <div className="card card-interactive p-5">
-                        <div className="flex items-start justify-between mb-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-3">
                           <div className="icon-sq w-10 h-10 icon-sq-verde rounded-xl flex items-center justify-center">
                             <MapPin size={17} />
                           </div>
-                          {atrasadas > 0 && (
-                            <span className="badge-status badge-danger">{atrasadas} atras.</span>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {atrasadas > 0 && (
+                              <span className="badge-status badge-danger">{atrasadas} atras.</span>
+                            )}
+                            {hoje > 0 && atrasadas === 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: 'hsl(210 100% 96%)', color: 'hsl(210 100% 40%)' }}>
+                                {hoje} hoje
+                              </span>
+                            )}
+                            {semFinalizada && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: 'var(--verde-50)', color: 'hsl(160 84% 22%)' }}>
+                                ✓ 100% semeado
+                              </span>
+                            )}
+                          </div>
                         </div>
+
                         <h3 className="font-semibold text-sm mb-0.5" style={{ color: 'var(--fg)' }}>{f.nome}</h3>
-                        <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>{f.localizacao}</p>
-                        <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--fg-subtle)', borderTop: '1px solid var(--borda)', paddingTop: '0.75rem' }}>
+                        <p className="text-xs mb-3" style={{ color: 'var(--fg-muted)' }}>{f.localizacao}</p>
+
+                        {/* Stats row */}
+                        <div className="flex items-center gap-3 text-xs mb-3" style={{ color: 'var(--fg-subtle)' }}>
                           <span className="flex items-center gap-1.5"><Leaf size={11} />{talhoesF.length} talhões</span>
+                          <span className="flex items-center gap-1.5"><Sprout size={11} />{comPlantio} plantados</span>
                           <span className="flex items-center gap-1.5"><TrendingUp size={11} />{appsF.length} aplic.</span>
+                        </div>
+
+                        {/* Sowing progress bar */}
+                        {pctSemeado > 0 && !semFinalizada && (
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px]" style={{ color: 'var(--fg-subtle)' }}>Semeadura</span>
+                              <span className="text-[10px] font-semibold" style={{ color: 'hsl(160 84% 22%)' }}>{pctSemeado}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-dark)' }}>
+                              <div className="h-full rounded-full" style={{ width: `${pctSemeado}%`, background: 'hsl(160 70% 42%)' }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Area + divider */}
+                        <div className="flex items-center gap-2 pt-3 text-xs"
+                          style={{ borderTop: '1px solid var(--borda)', color: 'var(--fg-subtle)' }}>
+                          {(f.area_total || totalArea > 0) && (
+                            <span>{(f.area_total || totalArea).toLocaleString('pt-BR')} ha</span>
+                          )}
+                          <span className="ml-auto flex items-center gap-1 font-semibold" style={{ color: 'hsl(160 84% 22%)' }}>
+                            Ver detalhes <ChevronRight size={11} />
+                          </span>
                         </div>
                       </div>
                     </Link>

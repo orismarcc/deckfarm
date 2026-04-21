@@ -8,12 +8,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Parse a YYYY-MM-DD string as LOCAL midnight — avoids the UTC-offset X-1 bug
+ * where parseISO('2026-04-20') becomes Apr-19 22:00 BRT (UTC-2 summer) and
+ * date-fns format() shows the wrong day.
+ */
+function localDate(dateStr: string): Date {
+  if (!dateStr) return new Date(NaN)
+  const s = dateStr.split('T')[0] // strip time if ISO timestamp
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)   // local midnight — no UTC shift
+}
+
 export function formatDate(date: string): string {
-  return format(parseISO(date), 'dd/MM/yyyy', { locale: ptBR })
+  return format(localDate(date), 'dd/MM/yyyy', { locale: ptBR })
 }
 
 export function formatDateLong(date: string): string {
-  return format(parseISO(date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  return format(localDate(date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
 }
 
 export function statusLabel(status: AplicacaoStatus): string {
@@ -93,7 +105,7 @@ export function produtoTipoColor(tipo: ProdutoTipo): string {
 }
 
 export function diasParaProxima(proxima: string): number {
-  return differenceInDays(parseISO(proxima), new Date())
+  return differenceInDays(localDate(proxima), new Date())
 }
 
 export function gerarId(): string {

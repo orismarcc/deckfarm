@@ -5,18 +5,28 @@ import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select } from '@/components/ui/select'
-import { diasParaProxima, culturaIcon, culturaLabel } from '@/lib/utils'
-import type { Aplicacao, Fazenda, Talhao } from '@/types'
-import { CalendarDays, ChevronLeft, ChevronRight, Sprout, CheckCircle2, FlaskConical } from 'lucide-react'
+import { Modal } from '@/components/ui/modal'
+import { diasParaProxima } from '@/lib/utils'
+import type { Aplicacao, Fazenda, Talhao, SemeaduraEtapa } from '@/types'
+import { CalendarDays, ChevronLeft, ChevronRight, Sprout, CheckCircle2, FlaskConical, Layers, X } from 'lucide-react'
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   isToday, parseISO, isSameDay,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Parse a YYYY-MM-DD string as LOCAL midnight — avoids timezone X-1 bug */
+function localDate(dateStr: string): Date {
+  const s = dateStr.split('T')[0]
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 // ── Event types ──────────────────────────────────────────────────────────────
 
-type EventType = 'aplicacao' | 'plantio' | 'colheita'
+type EventType = 'aplicacao' | 'plantio' | 'colheita' | 'semeadura'
 
 interface CalendarEvent {
   id: string
@@ -24,6 +34,7 @@ interface CalendarEvent {
   date: string
   label: string
   status?: string
+  detail?: string     // secondary info shown in day modal
   talhaoNome?: string
   fazendaNome?: string
 }
@@ -44,11 +55,19 @@ const eventTypeColor: Record<EventType, { bg: string; text: string }> = {
   aplicacao: { bg: 'hsl(270 60% 96%)', text: 'hsl(270 60% 45%)' },
   plantio:   { bg: 'hsl(130 55% 30% / 0.12)', text: 'hsl(130 55% 25%)' },
   colheita:  { bg: 'hsl(38 90% 93%)', text: 'hsl(32 90% 35%)' },
+  semeadura: { bg: 'hsl(210 100% 95%)', text: 'hsl(210 100% 35%)' },
 }
 const eventTypeIcon: Record<EventType, React.ReactNode> = {
   aplicacao: <FlaskConical size={11} />,
   plantio:   <Sprout size={11} />,
   colheita:  <CheckCircle2 size={11} />,
+  semeadura: <Layers size={11} />,
+}
+const eventTypeLabel: Record<EventType, string> = {
+  aplicacao: 'Aplicação',
+  plantio:   'Plantio',
+  colheita:  'Colheita',
+  semeadura: 'Semeadura',
 }
 
 export default function CronogramaPage() {
@@ -57,10 +76,15 @@ export default function CronogramaPage() {
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
   const [talhoes, setTalhoes] = useState<Talhao[]>([])
   const [fazendas, setFazendas] = useState<Fazenda[]>([])
+  const [etapas, setEtapas] = useState<SemeaduraEtapa[]>([])
   const [filtroFazenda, setFiltroFazenda] = useState('')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'calendar' | 'timeline'>('calendar')
   const [loading, setLoading] = useState(true)
+
+  // Day detail modal
+  const [dayModalDate, setDayModalDate] = useState<Date | null>(null)
+  const [dayModalEvents, setDayModalEvents] = useState<CalendarEvent[]>([])
 
   const loadData = useCallback(async () => {
     if (!user) return
@@ -81,6 +105,13 @@ export default function CronogramaPage() {
         return { ...a, talhao, produto }
       }))
       setAplicacoes(enriched as Aplicacao[])
+
+      // Semeadura etapas
+      const talIds = tals.map(t => t.id)
+      const ets = talIds.length > 0
+        ? await db.semeaduraEtapas.where('talhao_id').anyOf(talIds).toArray()
+        : []
+      setEtapas(ets)
     } finally { setLoading(false) }
   }, [user])
 
@@ -95,21 +126,26 @@ export default function CronogramaPage() {
   const filteredTalhoes = talhoes.filter(t =>
     !filtroFazenda || t.fazenda_id === filtroFazenda
   )
+  const filteredEtapas = etapas.filter(e =>
+    !filtroFazenda || e.fazenda_id === filtroFazenda
+  )
 
   const events: CalendarEvent[] = []
 
-  // Aplicação events: use proxima_aplicacao for planejadas, data_aplicacao for realizadas
+  // Aplicação events: use data_aplicacao for planejadas (their scheduled date), data_aplicacao for realizadas
   for (const a of filteredAps) {
-    const date = a.tipo === 'planejada' ? a.data_aplicacao : a.proxima_aplicacao
+    const date = a.data_aplicacao
     const talhaoNome = (a.talhao as any)?.nome
-    const fazendaId = (a.talhao as any)?.fazenda_id
+    const fazendaId  = (a.talhao as any)?.fazenda_id
     const fazendaNome = fazendas.find(f => f.id === fazendaId)?.nome
+    const prod = (a as any).produto
     events.push({
       id: `ap-${a.id}`,
       type: 'aplicacao',
       date,
-      label: (a.produto as any)?.nome || 'Aplicação',
+      label: prod?.nome || 'Aplicação',
       status: a.status,
+      detail: a.tipo === 'realizada' ? '✓ Realizada' : 'Planejada',
       talhaoNome,
       fazendaNome,
     })
@@ -143,6 +179,21 @@ export default function CronogramaPage() {
     })
   }
 
+  // Semeadura etapa events
+  for (const e of filteredEtapas) {
+    const talhao = talhoes.find(t => t.id === e.talhao_id)
+    const fazendaNome = fazendas.find(f => f.id === e.fazenda_id)?.nome
+    events.push({
+      id: `sem-${e.id}`,
+      type: 'semeadura',
+      date: e.data_semeadura,
+      label: `${e.etapa}ª Semeadura${talhao ? ` · ${talhao.nome}` : ''}`,
+      detail: `${e.area_semeada} ha`,
+      talhaoNome: talhao?.nome,
+      fazendaNome,
+    })
+  }
+
   const fazendaOptions = [
     { value: '', label: 'Todas as fazendas' },
     ...fazendas.map(f => ({ value: f.id, label: f.nome })),
@@ -154,20 +205,25 @@ export default function CronogramaPage() {
 
   function getEventsForDay(day: Date): CalendarEvent[] {
     return events.filter(ev => {
-      try { return isSameDay(parseISO(ev.date), day) } catch { return false }
+      try { return isSameDay(localDate(ev.date), day) } catch { return false }
     })
   }
 
-  // Timeline shows a rolling window: 30 days past → 90 days future.
-  // Far-future planned apps (>90d) and stale past events (>30d ago) are hidden.
-  // This prevents unexecuted planned apps from polluting the list day after day.
+  function openDayModal(day: Date) {
+    const evs = getEventsForDay(day)
+    if (evs.length === 0) return
+    setDayModalDate(day)
+    setDayModalEvents(evs)
+  }
+
+  // ── Timeline: rolling 30 days past → 90 days future ─────────────────────
   const timelineWindowStart = (() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - 30); return d })()
   const timelineWindowEnd   = (() => { const d = new Date(); d.setHours(23,59,59,999); d.setDate(d.getDate() + 90); return d })()
 
   const timeline = [...events]
     .filter(ev => {
       try {
-        const d = parseISO(ev.date)
+        const d = localDate(ev.date)
         return d >= timelineWindowStart && d <= timelineWindowEnd
       } catch { return false }
     })
@@ -183,7 +239,7 @@ export default function CronogramaPage() {
             Cronograma
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>
-            Plantios, aplicações e colheitas de todas as fazendas
+            Plantios, semeaduras, aplicações e colheitas de todas as fazendas
           </p>
         </div>
         <div className="flex items-center p-1 rounded-xl" style={{ background: 'var(--bg-dark)' }}>
@@ -254,18 +310,24 @@ export default function CronogramaPage() {
             {days.map(day => {
               const dayEvs = getEventsForDay(day)
               const today = isToday(day)
+              const clickable = dayEvs.length > 0
               return (
-                <div key={day.toISOString()} className="min-h-[80px] p-1.5"
+                <div
+                  key={day.toISOString()}
+                  className={`min-h-[80px] p-1.5 ${clickable ? 'cursor-pointer' : ''}`}
+                  onClick={() => openDayModal(day)}
                   style={{
                     borderRight: '1px solid var(--borda)',
                     borderBottom: '1px solid var(--borda)',
                     background: today ? 'hsl(160 84% 22% / 0.06)' : 'transparent',
+                    transition: 'background 0.15s',
                   }}
+                  onMouseEnter={e => { if (clickable) e.currentTarget.style.background = today ? 'hsl(160 84% 22% / 0.10)' : 'var(--bg-dark)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = today ? 'hsl(160 84% 22% / 0.06)' : 'transparent' }}
                 >
                   <span
                     className="text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1"
                     style={{
-                      // Fixed green circle for today — high contrast in both light/dark mode
                       background: today ? 'hsl(160 84% 22%)' : 'transparent',
                       color: today ? '#ffffff' : 'var(--fg-muted)',
                       fontWeight: today ? 700 : undefined,
@@ -287,7 +349,7 @@ export default function CronogramaPage() {
                       )
                     })}
                     {dayEvs.length > 3 && (
-                      <div className="text-xs" style={{ color: 'var(--fg-subtle)' }}>+{dayEvs.length - 3}</div>
+                      <div className="text-xs font-semibold" style={{ color: 'var(--fg-subtle)' }}>+{dayEvs.length - 3} mais</div>
                     )}
                   </div>
                 </div>
@@ -298,13 +360,14 @@ export default function CronogramaPage() {
           {/* Legend */}
           <div className="flex items-center gap-4 px-5 py-3 flex-wrap" style={{ borderTop: '1px solid var(--borda)' }}>
             {([
-              { label: 'Plantio', key: 'plantio' },
+              { label: 'Plantio',   key: 'plantio' },
+              { label: 'Semeadura', key: 'semeadura' },
               { label: 'Aplicação', key: 'aplicacao' },
-              { label: 'Colheita', key: 'colheita' },
-              { label: 'Atrasado', key: 'atrasado' },
+              { label: 'Colheita',  key: 'colheita' },
+              { label: 'Atrasado',  key: 'atrasado' },
             ] as const).map(({ label, key }) => {
               const isStatus = key === 'atrasado'
-              const bg = isStatus ? statusColor[key] : eventTypeColor[key as EventType].bg
+              const bg     = isStatus ? statusColor[key] : eventTypeColor[key as EventType].bg
               const border = isStatus ? statusTextColor[key] : eventTypeColor[key as EventType].text
               return (
                 <span key={key} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-muted)' }}>
@@ -316,13 +379,14 @@ export default function CronogramaPage() {
           </div>
         </div>
       ) : (
+        /* ── Timeline ─── */
         <div className="animate-enter animate-enter-3 overflow-x-hidden">
           {loading ? (
             <div className="text-center py-16" style={{ color: 'var(--fg-subtle)' }}>Carregando...</div>
           ) : timeline.length === 0 ? (
             <div className="card p-14 text-center">
               <CalendarDays className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--fg-subtle)', opacity: 0.4 }} />
-              <p style={{ color: 'var(--fg-muted)' }}>Nenhum evento no cronograma</p>
+              <p style={{ color: 'var(--fg-muted)' }}>Nenhum evento no período (últimos 30 dias + próximos 90 dias)</p>
             </div>
           ) : (
             <div className="relative overflow-hidden">
@@ -332,23 +396,20 @@ export default function CronogramaPage() {
                   const tc = ev.type === 'aplicacao' && ev.status
                     ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
                     : eventTypeColor[ev.type]
-                  const dias = (() => {
-                    try {
-                      const hoje = new Date(); hoje.setHours(0,0,0,0)
-                      const d = parseISO(ev.date)
-                      return Math.round((d.getTime() - hoje.getTime()) / 86400000)
-                    } catch { return 0 }
-                  })()
+                  const evDate = localDate(ev.date)
+                  const hoje = new Date(); hoje.setHours(0,0,0,0)
+                  const dias = Math.round((evDate.getTime() - hoje.getTime()) / 86400000)
+
                   return (
                     <div key={ev.id} className="flex gap-3 relative animate-enter min-w-0"
                       style={{ animationDelay: `${i * 35}ms` }}>
                       {/* Date column */}
                       <div className="w-14 flex-shrink-0 text-right pt-1.5">
                         <div className="text-xs font-semibold leading-tight" style={{ color: 'var(--fg)' }}>
-                          {format(parseISO(ev.date), 'dd/MM')}
+                          {format(evDate, 'dd/MM')}
                         </div>
                         <div className="text-[10px] leading-tight" style={{ color: 'var(--fg-subtle)' }}>
-                          {dias === 0 ? 'hoje' : dias > 0 ? `+${dias}d` : `${Math.abs(dias)}d`}
+                          {dias === 0 ? 'hoje' : dias > 0 ? `+${dias}d` : `${Math.abs(dias)}d atrás`}
                         </div>
                       </div>
                       {/* Timeline dot */}
@@ -364,11 +425,19 @@ export default function CronogramaPage() {
                                 {ev.label}
                               </div>
                             </div>
-                            {(ev.talhaoNome || ev.fazendaNome) && (
-                              <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--fg-muted)' }}>
-                                {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {(ev.talhaoNome || ev.fazendaNome) && (
+                                <span className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>
+                                  {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
+                                </span>
+                              )}
+                              {ev.detail && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                  style={{ color: tc.text, background: tc.bg }}>
+                                  {ev.detail}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex-shrink-0">
                             {ev.type === 'aplicacao' && ev.status && (
@@ -377,7 +446,7 @@ export default function CronogramaPage() {
                             {ev.type !== 'aplicacao' && (
                               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                                 style={{ color: tc.text, background: tc.bg }}>
-                                {ev.type === 'plantio' ? 'Plantio' : 'Colheita'}
+                                {eventTypeLabel[ev.type]}
                               </span>
                             )}
                           </div>
@@ -391,6 +460,42 @@ export default function CronogramaPage() {
           )}
         </div>
       )}
+
+      {/* ── Day detail modal ── */}
+      <Modal
+        open={!!dayModalDate}
+        onClose={() => setDayModalDate(null)}
+        title={dayModalDate ? format(dayModalDate, "dd 'de' MMMM yyyy", { locale: ptBR }) : ''}
+      >
+        <div className="space-y-2">
+          {dayModalEvents.map(ev => {
+            const tc = ev.type === 'aplicacao' && ev.status
+              ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
+              : eventTypeColor[ev.type]
+            return (
+              <div key={ev.id} className="flex items-start gap-3 p-3 rounded-xl"
+                style={{ background: tc.bg, border: `1px solid ${tc.text}22` }}>
+                <span className="mt-0.5 flex-shrink-0" style={{ color: tc.text }}>{eventTypeIcon[ev.type]}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: tc.text }}>{ev.label}</p>
+                  {(ev.talhaoNome || ev.fazendaNome) && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+                      {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
+                    </p>
+                  )}
+                  {ev.detail && (
+                    <p className="text-xs mt-0.5 font-medium" style={{ color: tc.text }}>{ev.detail}</p>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  style={{ background: 'white', color: tc.text }}>
+                  {eventTypeLabel[ev.type]}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </Modal>
     </div>
   )
 }

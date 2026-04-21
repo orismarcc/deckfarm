@@ -1,11 +1,13 @@
 import { getDB } from './index'
 import { enqueueSync, processSyncQueue } from './sync'
 import type { Aplicacao, AplicacaoStatus } from '@/types'
-import { addDays, isToday, isPast, differenceInDays, parseISO } from 'date-fns'
+import { addDays, isToday, isPast, differenceInDays, parseISO, format } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
 
 function calcularStatus(proxima_aplicacao: string): AplicacaoStatus {
-  const proxima = parseISO(proxima_aplicacao)
+  // Parse as local date to avoid UTC midnight → previous day in Brazil (X-1 bug)
+  const [y, m, d] = proxima_aplicacao.split('-').map(Number)
+  const proxima = new Date(y, m - 1, d)
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
 
@@ -18,8 +20,10 @@ function calcularStatus(proxima_aplicacao: string): AplicacaoStatus {
 
 export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplicacao' | 'status' | 'createdAt' | 'updatedAt'> & { prazo_produto: number }): Promise<Aplicacao> {
   const db = getDB()
-  const proxima = addDays(parseISO(data.data_aplicacao), data.prazo_produto)
-  const proxima_str = proxima.toISOString().split('T')[0]
+  // Parse as local date then add days → format as local date (avoids UTC X-1 bug)
+  const [ay, am, ad] = data.data_aplicacao.split('-').map(Number)
+  const proxima = addDays(new Date(ay, am - 1, ad), data.prazo_produto)
+  const proxima_str = format(proxima, 'yyyy-MM-dd')
   const now = new Date().toISOString()
 
   const aplicacao: Aplicacao = {
@@ -110,7 +114,7 @@ async function gerarNotificacoes(aplicacao: Aplicacao): Promise<void> {
       id: uuidv4(),
       tipo: n.tipo,
       mensagem: n.msg,
-      data_referencia: addDays(proxima, -n.dias).toISOString().split('T')[0],
+      data_referencia: format(addDays(proxima, -n.dias), 'yyyy-MM-dd'),
       lida: false,
       usuario_id: aplicacao.usuario_id,
       aplicacao_id: aplicacao.id,

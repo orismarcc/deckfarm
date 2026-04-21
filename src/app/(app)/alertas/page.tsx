@@ -1,12 +1,13 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
 import { cn, formatDate } from '@/lib/utils'
 import { gerarAlertasAutomaticos } from '@/lib/db/agronomo'
 import type { Notificacao } from '@/types'
-import { Bell, BellOff, CheckCheck, AlertTriangle, Clock, Calendar, Info } from 'lucide-react'
+import { Bell, BellOff, CheckCheck, AlertTriangle, Clock, Calendar, Info, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; color: string; bg: string }> = {
@@ -18,6 +19,7 @@ const notifConfig: Record<Notificacao['tipo'], { icon: React.ElementType; color:
 }
 
 export default function AlertasPage() {
+  const router = useRouter()
   const { user } = useAuthStore()
   const { notificacoes, setNotificacoes, markNotificacaoLida, lastServerSyncAt } = useAppStore()
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,6 @@ export default function AlertasPage() {
     if (!user) return
     setLoading(true)
     try {
-      // Auto-generate alerts from all data sources before loading
       await gerarAlertasAutomaticos(user.id)
       const db = getDB()
       const today = new Date().toISOString().split('T')[0]
@@ -51,6 +52,18 @@ export default function AlertasPage() {
     const naoLidas = notificacoes.filter(n => !n.lida)
     await Promise.all(naoLidas.map(n => getDB().notificacoes.update(n.id, { lida: true })))
     naoLidas.forEach(n => markNotificacaoLida(n.id))
+  }
+
+  async function handleClickAlerta(n: Notificacao) {
+    // Mark as read
+    if (!n.lida) await marcarLida(n.id)
+
+    // Navigate to the relevant resource
+    if (n.talhao_id) {
+      router.push(`/talhoes/${n.talhao_id}`)
+    } else if (n.fazenda_id) {
+      router.push(`/fazendas/${n.fazenda_id}`)
+    }
   }
 
   const unread = notificacoes.filter(n => !n.lida).length
@@ -105,13 +118,19 @@ export default function AlertasPage() {
           {filtered.map((n, i) => {
             const cfg = notifConfig[n.tipo] || { icon: Bell, color: 'var(--fg-muted)', bg: 'var(--bg-dark)' }
             const Icon = cfg.icon
+            const isNavigable = !!(n.talhao_id || n.fazenda_id)
             return (
-              <div key={n.id}
-                onClick={() => !n.lida && marcarLida(n.id)}
-                className={cn('card flex items-start gap-3 p-4 animate-enter', !n.lida && 'cursor-pointer')}
-                style={{ opacity: n.lida ? 0.5 : 1, animationDelay: `${(i + 2) * 45}ms`, transition: 'opacity 0.2s, box-shadow 0.2s' }}
-                onMouseEnter={e => { if (!n.lida) e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-card)' }}>
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => handleClickAlerta(n)}
+                className={cn(
+                  'card w-full text-left flex items-start gap-3 p-4 animate-enter transition-all',
+                  isNavigable && 'cursor-pointer hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5',
+                  !isNavigable && 'cursor-default',
+                )}
+                style={{ opacity: n.lida ? 0.55 : 1, animationDelay: `${(i + 2) * 45}ms` }}
+              >
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: cfg.bg }}>
                   <Icon size={15} style={{ color: cfg.color }} />
@@ -121,13 +140,24 @@ export default function AlertasPage() {
                     style={{ color: n.lida ? 'var(--fg-muted)' : 'var(--fg)', fontWeight: n.lida ? 400 : 500 }}>
                     {n.mensagem}
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>{formatDate(n.data_referencia)}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>{formatDate(n.data_referencia)}</p>
+                    {isNavigable && (
+                      <span className="text-[10px] font-semibold" style={{ color: cfg.color }}>
+                        {n.talhao_id ? 'Ver talhão' : 'Ver fazenda'} →
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {!n.lida && (
-                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
-                    style={{ background: 'hsl(160 84% 22%)' }} />
-                )}
-              </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {!n.lida && (
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'hsl(160 84% 22%)' }} />
+                  )}
+                  {isNavigable && (
+                    <ChevronRight size={14} style={{ color: 'var(--fg-subtle)' }} />
+                  )}
+                </div>
+              </button>
             )
           })}
         </div>

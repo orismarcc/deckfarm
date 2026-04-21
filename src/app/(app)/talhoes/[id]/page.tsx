@@ -46,7 +46,8 @@ const STATUS_SEMEADURA_COLORS: Record<StatusSemeadura, { color: string; bg: stri
   finalizada:   { color: 'hsl(160 84% 22%)', bg: 'hsl(160 84% 22% / 0.1)' },
 }
 
-const TODAY = new Date().toISOString().split('T')[0]
+// format() from date-fns uses LOCAL time → correct local date, no UTC-offset X-1 bug
+const TODAY = format(new Date(), 'yyyy-MM-dd')
 
 /** Portuguese ordinal for a sowing stage: 1 → "1ª", 2 → "2ª", etc. */
 function etapaOrdinal(n: number): string { return `${n}ª etapa` }
@@ -84,7 +85,7 @@ async function gerarNotificacoesSemeadura(talhao: Talhao, usuario_id: string): P
       id: gerarId(),
       tipo: 'semana',
       mensagem: `Colheita prevista para o talhão "${talhao.nome}" em uma semana`,
-      data_referencia: addDays(colheita, -7).toISOString().split('T')[0],
+      data_referencia: format(addDays(colheita, -7), 'yyyy-MM-dd'),
       lida: false,
       usuario_id,
       talhao_id: talhao.id,
@@ -95,7 +96,7 @@ async function gerarNotificacoesSemeadura(talhao: Talhao, usuario_id: string): P
       id: gerarId(),
       tipo: 'amanha',
       mensagem: `Colheita do talhão "${talhao.nome}" prevista para amanhã`,
-      data_referencia: addDays(colheita, -1).toISOString().split('T')[0],
+      data_referencia: format(addDays(colheita, -1), 'yyyy-MM-dd'),
       lida: false,
       usuario_id,
       talhao_id: talhao.id,
@@ -766,7 +767,7 @@ export default function TalhaoPage() {
                           {etapaOrdinal(et.etapa)} — {et.area_semeada} ha ({pctEtapa.toFixed(0)}%)
                         </span>
                         <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
-                          {format(parseISO(et.data_semeadura), 'dd/MM/yyyy')}
+                          {(() => { const [y,m,d] = et.data_semeadura.split('-').map(Number); return format(new Date(y,m-1,d), 'dd/MM/yyyy') })()}
                         </span>
                       </div>
                       {et.observacoes && (
@@ -886,7 +887,7 @@ export default function TalhaoPage() {
                         {(prod as any)?.nome || 'Produto'}
                       </div>
                       <div className="text-xs mt-0.5 flex items-center gap-2" style={{ color: 'var(--fg-muted)' }}>
-                        <span>{format(parseISO(a.data_aplicacao), "dd/MM/yyyy")}</span>
+                        <span>{(() => { const [y,m,d] = a.data_aplicacao.split('-').map(Number); return format(new Date(y,m-1,d), 'dd/MM/yyyy') })()}</span>
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ color: sc.color, background: sc.bg }}>
                           {a.status === 'atrasado' ? 'Atrasado' : a.status === 'hoje' ? 'Hoje' : a.status === 'proximo' ? 'Próximo' : 'No prazo'}
@@ -942,12 +943,87 @@ export default function TalhaoPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {realizadas.map((a, i) => (
-                <div key={a.id} className="animate-enter" style={{ animationDelay: `${(i + 3) * 50}ms` }}>
-                  <AplicacaoCard aplicacao={a} showTalhao={false} />
-                </div>
-              ))}
+            <div className="space-y-2">
+              {realizadas.map((a, i) => {
+                const prod = a.produto as any
+                const areaApl = a.area_aplicada ?? talhao.area
+                const qtdUsada = (a.dose && areaApl) ? Number((a.dose * areaApl).toFixed(2)) : null
+                const unidade = a.unidade_dose?.split('/')[0] ?? ''
+                const [ay, am, ad] = a.data_aplicacao.split('-').map(Number)
+                return (
+                  <div key={a.id} className="animate-enter card overflow-hidden"
+                    style={{ animationDelay: `${(i + 3) * 50}ms`, borderLeft: '3px solid hsl(160 84% 22%)' }}>
+                    <div className="px-4 py-3">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: 'hsl(160 84% 22% / 0.1)' }}>
+                            <CheckCircle2 size={13} style={{ color: 'hsl(160 84% 22%)' }} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>
+                              {prod?.nome || 'Produto'}
+                            </p>
+                            <p className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
+                              {format(new Date(ay, am - 1, ad), "dd 'de' MMM yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
+                          ✓ Realizada
+                        </span>
+                      </div>
+
+                      {/* Detail pills */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {a.dose != null && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: 'var(--bg)', border: '1px solid var(--borda)', color: 'var(--fg-muted)' }}>
+                            Dose: {a.dose} {a.unidade_dose}
+                          </span>
+                        )}
+                        {areaApl != null && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: 'var(--bg)', border: '1px solid var(--borda)', color: 'var(--fg-muted)' }}>
+                            Área: {areaApl} ha
+                          </span>
+                        )}
+                        {qtdUsada != null && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: 'hsl(210 100% 97%)', border: '1px solid hsl(210 100% 88%)', color: 'hsl(210 80% 38%)' }}>
+                            Usado: {qtdUsada} {unidade}
+                          </span>
+                        )}
+                        {prod?.quantidade_disponivel != null && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{
+                              background: prod.quantidade_disponivel < 10 ? 'hsl(4 86% 96%)' : 'var(--bg)',
+                              border: `1px solid ${prod.quantidade_disponivel < 10 ? 'hsl(4 72% 88%)' : 'var(--borda)'}`,
+                              color: prod.quantidade_disponivel < 10 ? 'hsl(4 72% 45%)' : 'var(--fg-muted)',
+                            }}>
+                            Estoque: {prod.quantidade_disponivel} {prod.unidade_quantidade || unidade}
+                          </span>
+                        )}
+                        {a.clima && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: 'var(--bg)', border: '1px solid var(--borda)', color: 'var(--fg-muted)' }}>
+                            🌤 {a.clima}
+                          </span>
+                        )}
+                      </div>
+
+                      {a.observacoes && (
+                        <p className="mt-2 text-xs line-clamp-1 px-2.5 py-1.5 rounded-lg"
+                          style={{ background: 'var(--bg)', border: '1px solid var(--borda)', color: 'var(--fg-subtle)' }}>
+                          {a.observacoes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )
         )}
@@ -1312,13 +1388,14 @@ export default function TalhaoPage() {
           {form.produto_id && (() => {
             const prod = produtos.find(p => p.id === form.produto_id)
             if (!prod || !form.data_aplicacao) return null
-            const proxima = new Date(form.data_aplicacao)
-            proxima.setDate(proxima.getDate() + prod.prazo_medio_aplicacao)
+            // Parse as local date to avoid X-1 bug
+            const [dy, dm, dd] = form.data_aplicacao.split('-').map(Number)
+            const proxima = addDays(new Date(dy, dm - 1, dd), prod.prazo_medio_aplicacao)
             return (
               <div className="px-4 py-3 rounded-xl text-sm"
                 style={{ background: 'hsl(210 100% 97%)', color: 'hsl(210 100% 35%)' }}>
                 <span className="font-medium">Próxima aplicação:</span>{' '}
-                {proxima.toLocaleDateString('pt-BR')} (+{prod.prazo_medio_aplicacao} dias)
+                {format(proxima, 'dd/MM/yyyy')} (+{prod.prazo_medio_aplicacao} dias)
               </div>
             )
           })()}

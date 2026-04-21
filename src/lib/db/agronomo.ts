@@ -27,7 +27,8 @@ export const CICLO_CULTURA: Record<CulturaType, number> = {
 // ── Status ──────────────────────────────────────────────────────────────────
 
 function calcStatus(data: string): Aplicacao['status'] {
-  const d = parseISO(data)
+  const [y, m, dd] = data.split('-').map(Number)
+  const d = new Date(y, m - 1, dd)    // local date — no UTC offset bug
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
   if (isToday(d)) return 'hoje'
   if (isPast(d)) return 'atrasado'
@@ -52,7 +53,7 @@ export async function criarOuAtualizarSafra(talhao: Talhao): Promise<void> {
   const ciclo = CICLO_CULTURA[talhao.cultura] ?? 120
   const dataColheita = talhao.data_colheita_prevista
     ? talhao.data_colheita_prevista
-    : addDays(dataPlantio, ciclo).toISOString().split('T')[0]
+    : format(addDays(dataPlantio, ciclo), 'yyyy-MM-dd')
 
   // Procura safra existente (mesma fazenda + cultura + ano)
   const safraExistente = await db.safras
@@ -244,7 +245,8 @@ export async function gerarAlertasAutomaticos(usuario_id: string): Promise<void>
 
     // Usa data_aplicacao para planejadas, proxima_aplicacao para reais
     const dataRef = ap.tipo === 'planejada' ? ap.data_aplicacao : ap.proxima_aplicacao
-    const dataD = parseISO(dataRef)
+    const [ry, rm, rd] = dataRef.split('-').map(Number)
+    const dataD = new Date(ry, rm - 1, rd)  // local date
     const diff = differenceInDays(dataD, hoje)
 
     if (diff < 0) {
@@ -270,7 +272,8 @@ export async function gerarAlertasAutomaticos(usuario_id: string): Promise<void>
     if (!talhao.data_colheita_prevista) continue
     const fazenda = fazendas.find(f => f.id === talhao.fazenda_id)
     const nomeF = fazenda?.nome ? ` — ${fazenda.nome}` : ''
-    const diffColheita = differenceInDays(parseISO(talhao.data_colheita_prevista), hoje)
+    const [cy, cm, cd] = talhao.data_colheita_prevista.split('-').map(Number)
+    const diffColheita = differenceInDays(new Date(cy, cm - 1, cd), hoje)
 
     if (diffColheita >= 0 && diffColheita <= 7) {
       adicionarAlerta('semana', `Colheita prevista em ${diffColheita === 0 ? 'hoje' : `${diffColheita} dias`}: ${talhao.nome}${nomeF}`,

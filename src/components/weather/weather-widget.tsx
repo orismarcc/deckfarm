@@ -89,10 +89,10 @@ export function WeatherWidget({ latitude, longitude, localizacao, compact = fals
           if (results && results.length > 0) {
             fetchWeather(parseFloat(results[0].lat), parseFloat(results[0].lon))
           } else {
-            setError('Localização não encontrada — adicione lat/lng na fazenda')
+            setError(`Cidade "${localizacao}" não encontrada. Tente um nome mais específico.`)
           }
         })
-        .catch(() => setError('Adicione latitude/longitude na fazenda para previsão precisa'))
+        .catch(() => setError('Não foi possível carregar a previsão para esta localização'))
     }
   }, [latitude, longitude, localizacao])
 
