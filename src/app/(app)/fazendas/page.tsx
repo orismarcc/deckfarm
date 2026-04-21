@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
@@ -40,8 +40,6 @@ export default function FazendasPage() {
   const [busca, setBusca] = useState('')
   const [cidades, setCidades] = useState<string[]>([])
   const [loadingCidades, setLoadingCidades] = useState(false)
-  const [showCidadeSugg, setShowCidadeSugg] = useState(false)
-  const cidadeWrapRef = useRef<HTMLDivElement>(null)
   // weather sempre visível por card; botão permite ocultar se desejar
   const [weatherOculta, setWeatherOculta] = useState<Set<string>>(new Set())
 
@@ -71,16 +69,6 @@ export default function FazendasPage() {
     finally { setLoadingCidades(false) }
   }
 
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (cidadeWrapRef.current && !cidadeWrapRef.current.contains(e.target as Node)) {
-        setShowCidadeSugg(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [])
-
   function openModal(f?: Fazenda) {
     if (f) {
       setEditando(f)
@@ -102,7 +90,6 @@ export default function FazendasPage() {
       setForm({ nome: '', localizacao: '', nome_produtor: '', area_total: '', latitude: '', longitude: '', estado: '', cidade: '' })
       setCidades([])
     }
-    setShowCidadeSugg(false)
     setModalOpen(true)
   }
 
@@ -327,7 +314,7 @@ export default function FazendasPage() {
                       <WeatherWidget
                         latitude={f.latitude}
                         longitude={f.longitude}
-                        localizacao={!f.latitude ? f.localizacao : undefined}
+                        localizacao={!f.latitude ? (f.localizacao?.split(' - ')[0] || f.localizacao) : undefined}
                         compact
                       />
                     </div>
@@ -374,7 +361,6 @@ export default function FazendasPage() {
                   const uf = e.target.value
                   setForm(f => ({ ...f, estado: uf, cidade: '' }))
                   setCidades([])
-                  setShowCidadeSugg(false)
                   fetchCidades(uf)
                 }}
                 className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50"
@@ -389,57 +375,25 @@ export default function FazendasPage() {
             </div>
           </div>
 
-          {/* Cidade autocomplete */}
-          <div className="flex flex-col gap-1.5" ref={cidadeWrapRef}>
+          {/* Cidade — select idêntico ao Estado, populado via IBGE */}
+          <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[--fg-muted] uppercase tracking-wide">Cidade</label>
             <div className="relative">
-              <input
-                type="text"
+              <select
                 value={form.cidade}
-                onChange={e => {
-                  const v = e.target.value
-                  setForm(f => ({ ...f, cidade: v }))
-                  if (v.length >= 2 && cidades.length > 0) {
-                    setShowCidadeSugg(true)
-                  } else {
-                    setShowCidadeSugg(false)
-                  }
-                }}
-                onKeyDown={e => { if (e.key === 'Escape') setShowCidadeSugg(false) }}
-                onFocus={() => { if (form.cidade.length >= 2 && cidades.length > 0) setShowCidadeSugg(true) }}
-                placeholder={loadingCidades ? 'Carregando cidades...' : form.estado ? 'Digite o nome da cidade' : 'Selecione o estado primeiro'}
-                disabled={!form.estado || loadingCidades}
-                className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 pl-3 pr-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50 disabled:opacity-50"
+                onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
+                disabled={!form.estado || loadingCidades || cidades.length === 0}
+                className="h-10 w-full rounded-xl border text-sm text-[--fg] transition-all duration-150 appearance-none pr-8 pl-3 focus:outline-none focus:ring-2 focus:ring-[--primary]/30 focus:border-[--primary] border-[--borda] hover:border-[--fg-subtle]/50 disabled:opacity-50"
                 style={{ background: 'var(--input-bg)' }}
-              />
-              {showCidadeSugg && (() => {
-                const sugg = cidades
-                  .filter(c => c.toLowerCase().includes(form.cidade.toLowerCase()))
-                  .slice(0, 6)
-                return sugg.length > 0 ? (
-                  <ul
-                    className="absolute z-50 w-full mt-1 rounded-xl border overflow-hidden shadow-lg"
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--borda)' }}
-                  >
-                    {sugg.map(c => (
-                      <li
-                        key={c}
-                        className="px-3 py-2 text-sm cursor-pointer transition-colors"
-                        style={{ color: 'var(--fg)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        onMouseDown={e => {
-                          e.preventDefault()
-                          setForm(f => ({ ...f, cidade: c }))
-                          setShowCidadeSugg(false)
-                        }}
-                      >
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null
-              })()}
+              >
+                <option value="">
+                  {loadingCidades ? 'Carregando...' : !form.estado ? 'Selecione o estado primeiro' : 'Selecione a cidade'}
+                </option>
+                {cidades.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[--fg-subtle] pointer-events-none" />
             </div>
           </div>
           <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />

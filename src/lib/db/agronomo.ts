@@ -211,7 +211,8 @@ export async function gerarAlertasAutomaticos(usuario_id: string): Promise<void>
 
   // Notificações existentes para evitar duplicatas (por tipo+data+referência)
   const existentes = await db.notificacoes.where('usuario_id').equals(usuario_id).toArray()
-  const chaveExistente = new Set(existentes.map(n => `${n.tipo}:${n.talhao_id}:${n.data_referencia}`))
+  // Use ?? '' so undefined talhao_id normalises to '' — avoids duplicate alerts on re-run
+  const chaveExistente = new Set(existentes.map(n => `${n.tipo}:${n.talhao_id ?? ''}:${n.data_referencia}`))
 
   const novas: typeof existentes = []
 
