@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const { stats, setStats, fazendas, setFazendas, talhoes, setTalhoes, aplicacoes, setAplicacoes, setNotificacoes, lastServerSyncAt } = useAppStore()
   const [loading, setLoading] = useState(true)
   const [urgentes, setUrgentes] = useState<Aplicacao[]>([])
+  const [prioridadesOpen, setPrioridadesOpen] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!user) return
@@ -210,22 +211,83 @@ export default function DashboardPage() {
             </Link>
           )}
 
-          {/* ── Urgent applications ─── */}
+          {/* ── Urgent applications — collapsible ─── */}
           {urgentes.length > 0 && (
             <div className="animate-enter-4">
-              <div className="flex items-end justify-between mb-4">
-                <div>
+              {/* Header — always visible, click to expand/collapse */}
+              <button
+                type="button"
+                onClick={() => setPrioridadesOpen(o => !o)}
+                className="w-full flex items-center justify-between mb-0 group"
+              >
+                <div className="text-left">
                   <p className="section-label mb-0.5">Prioridade máxima</p>
-                  <h2 className="text-base font-bold" style={{ color: 'var(--fg)' }}>Requer atenção</h2>
+                  <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--fg)' }}>
+                    Requer atenção
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: 'hsl(4 86% 96%)', color: 'hsl(4 72% 45%)' }}>
+                      {urgentes.length}
+                    </span>
+                  </h2>
                 </div>
-                <Link href="/aplicacoes" className="flex items-center gap-1 text-sm font-semibold"
-                  style={{ color: 'hsl(160 84% 22%)' }}>
-                  Ver todas <ChevronRight size={14} />
-                </Link>
-              </div>
-              <div className="grid md:grid-cols-2 gap-3">
-                {urgentes.map(a => <AplicacaoCard key={a.id} aplicacao={a} />)}
-              </div>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/aplicacoes"
+                    onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-1 text-sm font-semibold"
+                    style={{ color: 'hsl(160 84% 22%)' }}
+                  >
+                    Ver todas <ChevronRight size={14} />
+                  </Link>
+                  <span
+                    className="w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200"
+                    style={{
+                      background: prioridadesOpen ? 'var(--bg-dark)' : 'transparent',
+                      color: 'var(--fg-muted)',
+                      transform: prioridadesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    <ChevronRight size={16} />
+                  </span>
+                </div>
+              </button>
+
+              {/* Collapsed hint — shows top 3 names when closed */}
+              {!prioridadesOpen && (
+                <div
+                  className="mt-3 px-4 py-3 rounded-2xl flex items-center gap-3 cursor-pointer transition-all hover:shadow-[var(--shadow-sm)]"
+                  style={{ background: 'var(--bg-card)', border: '1px solid var(--borda)' }}
+                  onClick={() => setPrioridadesOpen(true)}
+                >
+                  <div className="flex -space-x-1.5">
+                    {urgentes.slice(0, 3).map((a, i) => (
+                      <div
+                        key={a.id}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2"
+                        style={{
+                          background: a.status === 'atrasado' ? 'hsl(4 72% 50%)' : a.status === 'hoje' ? 'hsl(210 100% 45%)' : 'hsl(38 70% 46%)',
+                          borderColor: 'var(--bg-card)',
+                          zIndex: 3 - i,
+                        }}
+                      >
+                        {((a as any).talhao?.nome || '?')[0].toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm flex-1 truncate" style={{ color: 'var(--fg-muted)' }}>
+                    {urgentes.slice(0, 3).map(a => (a as any).talhao?.nome || 'Talhão').join(', ')}
+                    {urgentes.length > 3 ? ` +${urgentes.length - 3}` : ''}
+                  </p>
+                  <span className="text-xs font-semibold" style={{ color: 'hsl(160 84% 22%)' }}>Expandir</span>
+                </div>
+              )}
+
+              {/* Expanded list — top 3 */}
+              {prioridadesOpen && (
+                <div className="mt-4 grid md:grid-cols-2 gap-3">
+                  {urgentes.slice(0, 3).map(a => <AplicacaoCard key={a.id} aplicacao={a} />)}
+                </div>
+              )}
             </div>
           )}
 

@@ -1,24 +1,18 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useAppStore } from '@/store/app'
-import { useAuthStore } from '@/store/auth'
-import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, Bell } from 'lucide-react'
+import { LayoutDashboard, MapPin, FlaskConical, CalendarDays } from 'lucide-react'
 
-// Bottom nav mantém apenas 5 ações principais — acesso completo pelo menu ☰
+// Bottom nav — alertas disponível no botão de sino no header superior
 const nav = [
   { href: '/dashboard',  icon: LayoutDashboard, label: 'Início' },
   { href: '/fazendas',   icon: MapPin,           label: 'Fazendas' },
   { href: '/aplicacoes', icon: FlaskConical,     label: 'Aplicar' },
   { href: '/cronograma', icon: CalendarDays,     label: 'Agenda' },
-  { href: '/alertas',    icon: Bell,             label: 'Alertas' },
 ]
 
 export function MobileNav() {
   const pathname  = usePathname()
-  const { notificacoes } = useAppStore()
-  const unread    = notificacoes.filter(n => !n.lida).length
-
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-50"
@@ -35,8 +29,7 @@ export function MobileNav() {
       >
         <div className="flex">
           {nav.map(({ href, icon: Icon, label }) => {
-            const active    = pathname.startsWith(href)
-            const isAlertas = href === '/alertas'
+            const active = pathname.startsWith(href)
             return (
               <Link
                 key={href}
@@ -44,18 +37,11 @@ export function MobileNav() {
                 className="flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-all duration-150"
                 style={{ color: active ? 'hsl(160 84% 22%)' : 'var(--fg-subtle)' }}
               >
-                <div className="relative">
-                  <div
-                    className="w-6 h-6 flex items-center justify-center rounded-lg transition-all duration-150"
-                    style={{ background: active ? 'hsl(160 84% 22% / 0.10)' : 'transparent' }}
-                  >
-                    <Icon className="w-[18px] h-[18px]" />
-                  </div>
-                  {isAlertas && unread > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                      {unread > 9 ? '9+' : unread}
-                    </span>
-                  )}
+                <div
+                  className="w-6 h-6 flex items-center justify-center rounded-lg transition-all duration-150"
+                  style={{ background: active ? 'hsl(160 84% 22% / 0.10)' : 'transparent' }}
+                >
+                  <Icon className="w-[18px] h-[18px]" />
                 </div>
                 <span
                   className="text-[10px] font-semibold tracking-tight"
