@@ -3,12 +3,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
+import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Select } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
-import { diasParaProxima } from '@/lib/utils'
 import type { Aplicacao, Fazenda, Talhao, SemeaduraEtapa } from '@/types'
-import { CalendarDays, ChevronLeft, ChevronRight, Sprout, CheckCircle2, FlaskConical, Layers, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Sprout, CheckCircle2, FlaskConical, Layers } from 'lucide-react'
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   isToday, parseISO, isSameDay,
@@ -34,9 +34,11 @@ interface CalendarEvent {
   date: string
   label: string
   status?: string
-  detail?: string     // secondary info shown in day modal
+  detail?: string
   talhaoNome?: string
   fazendaNome?: string
+  aplicacaoId?: string                       // raw DB id (no 'ap-' prefix)
+  aplicacaoTipo?: 'planejada' | 'realizada'  // current tipo for toggle UI
 }
 
 const statusColor: Record<string, string> = {
@@ -118,6 +120,20 @@ export default function CronogramaPage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Toggle aplicação tipo (planejada ↔ realizada) ────────────────────────
+  async function toggleAplicacaoTipo(aplicacaoId: string, tipoAtual: 'planejada' | 'realizada') {
+    const db = getDB()
+    const novoTipo = tipoAtual === 'planejada' ? 'realizada' : 'planejada'
+    const now = new Date().toISOString()
+    await db.aplicacoes.update(aplicacaoId, { tipo: novoTipo, updatedAt: now, _syncStatus: 'pending' })
+    const updated = await db.aplicacoes.get(aplicacaoId)
+    if (updated) {
+      await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
+      processSyncQueue()
+    }
+    setAplicacoes(prev => prev.map(a => a.id === aplicacaoId ? { ...a, tipo: novoTipo } : a))
+  }
+
   // ── Build unified event list ─────────────────────────────────────────────
 
   const filteredAps = aplicacoes.filter(a =>
@@ -145,9 +161,11 @@ export default function CronogramaPage() {
       date,
       label: prod?.nome || 'Aplicação',
       status: a.status,
-      detail: a.tipo === 'realizada' ? '✓ Realizada' : 'Planejada',
+      detail: a.tipo === 'realizada' ? '✓ Realizada' : '📅 Agendada',
       talhaoNome,
       fazendaNome,
+      aplicacaoId: a.id,
+      aplicacaoTipo: a.tipo as 'planejada' | 'realizada',
     })
   }
 
@@ -337,8 +355,10 @@ export default function CronogramaPage() {
                   </span>
                   <div className="space-y-0.5">
                     {dayEvs.slice(0, 3).map(ev => {
-                      const tc = ev.type === 'aplicacao' && ev.status
-                        ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
+                      const tc = ev.type === 'aplicacao'
+                        ? ev.aplicacaoTipo === 'realizada'
+                          ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
+                          : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
                         : eventTypeColor[ev.type]
                       return (
                         <div key={ev.id} className="text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-0.5"
@@ -393,8 +413,11 @@ export default function CronogramaPage() {
               <div className="absolute top-0 bottom-0 w-px" style={{ left: '3.5rem', background: 'var(--borda)' }} />
               <div className="space-y-3">
                 {timeline.map((ev, i) => {
-                  const tc = ev.type === 'aplicacao' && ev.status
-                    ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
+                  // Realizadas always show green; planejadas use status color
+                  const tc = ev.type === 'aplicacao'
+                    ? ev.aplicacaoTipo === 'realizada'
+                      ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
+                      : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
                     : eventTypeColor[ev.type]
                   const evDate = localDate(ev.date)
                   const hoje = new Date(); hoje.setHours(0,0,0,0)
@@ -414,7 +437,10 @@ export default function CronogramaPage() {
                       </div>
                       {/* Timeline dot */}
                       <div className="w-3 h-3 rounded-full border-2 flex-shrink-0 mt-2 z-10"
-                        style={{ background: 'var(--bg-card)', borderColor: tc.text }} />
+                        style={{
+                          background: ev.aplicacaoTipo === 'realizada' ? 'hsl(160 84% 22%)' : 'var(--bg-card)',
+                          borderColor: tc.text,
+                        }} />
                       {/* Card */}
                       <div className="flex-1 min-w-0 card p-3">
                         <div className="flex items-start gap-2">
@@ -431,23 +457,45 @@ export default function CronogramaPage() {
                                   {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
                                 </span>
                               )}
-                              {ev.detail && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                                  style={{ color: tc.text, background: tc.bg }}>
-                                  {ev.detail}
-                                </span>
-                              )}
                             </div>
                           </div>
-                          <div className="flex-shrink-0">
-                            {ev.type === 'aplicacao' && ev.status && (
-                              <StatusBadge status={ev.status as any} />
-                            )}
-                            {ev.type !== 'aplicacao' && (
+
+                          {/* Right: status badge + toggle button */}
+                          <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+                            {ev.type === 'aplicacao' ? (
+                              ev.aplicacaoTipo === 'realizada' ? (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                                  style={{ background: 'hsl(160 84% 22% / 0.12)', color: 'hsl(160 84% 22%)' }}>
+                                  <CheckCircle2 size={9} /> Realizada
+                                </span>
+                              ) : (
+                                <StatusBadge status={ev.status as any} />
+                              )
+                            ) : (
                               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                                 style={{ color: tc.text, background: tc.bg }}>
                                 {eventTypeLabel[ev.type]}
                               </span>
+                            )}
+
+                            {/* Toggle: only for aplicacao events */}
+                            {ev.type === 'aplicacao' && ev.aplicacaoId && (
+                              <button
+                                type="button"
+                                onClick={() => toggleAplicacaoTipo(ev.aplicacaoId!, ev.aplicacaoTipo!)}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-all"
+                                style={{
+                                  borderColor: ev.aplicacaoTipo === 'realizada'
+                                    ? 'hsl(0 60% 60% / 0.35)'
+                                    : 'hsl(160 84% 22% / 0.35)',
+                                  color: ev.aplicacaoTipo === 'realizada'
+                                    ? 'hsl(0 60% 50%)'
+                                    : 'hsl(160 84% 22%)',
+                                  background: 'transparent',
+                                }}
+                              >
+                                {ev.aplicacaoTipo === 'realizada' ? '↩ Reverter' : '✓ Realizar'}
+                              </button>
                             )}
                           </div>
                         </div>
@@ -469,8 +517,10 @@ export default function CronogramaPage() {
       >
         <div className="space-y-2">
           {dayModalEvents.map(ev => {
-            const tc = ev.type === 'aplicacao' && ev.status
-              ? { bg: statusColor[ev.status] || 'var(--bg-dark)', text: statusTextColor[ev.status] || 'var(--fg-muted)' }
+            const tc = ev.type === 'aplicacao'
+              ? ev.aplicacaoTipo === 'realizada'
+                ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
+                : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
               : eventTypeColor[ev.type]
             return (
               <div key={ev.id} className="flex items-start gap-3 p-3 rounded-xl"
@@ -483,14 +533,33 @@ export default function CronogramaPage() {
                       {ev.talhaoNome}{ev.fazendaNome ? ` · ${ev.fazendaNome}` : ''}
                     </p>
                   )}
-                  {ev.detail && (
-                    <p className="text-xs mt-0.5 font-medium" style={{ color: tc.text }}>{ev.detail}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'white', color: tc.text }}>
+                    {ev.type === 'aplicacao'
+                      ? (ev.aplicacaoTipo === 'realizada' ? 'Realizada' : 'Agendada')
+                      : eventTypeLabel[ev.type]}
+                  </span>
+                  {ev.type === 'aplicacao' && ev.aplicacaoId && (
+                    <button
+                      type="button"
+                      onClick={() => toggleAplicacaoTipo(ev.aplicacaoId!, ev.aplicacaoTipo!)}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-all"
+                      style={{
+                        borderColor: ev.aplicacaoTipo === 'realizada'
+                          ? 'hsl(0 60% 60% / 0.4)'
+                          : 'hsl(160 84% 22% / 0.4)',
+                        color: ev.aplicacaoTipo === 'realizada'
+                          ? 'hsl(0 60% 50%)'
+                          : 'hsl(160 84% 22%)',
+                        background: 'transparent',
+                      }}
+                    >
+                      {ev.aplicacaoTipo === 'realizada' ? '↩ Reverter' : '✓ Realizar'}
+                    </button>
                   )}
                 </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                  style={{ background: 'white', color: tc.text }}>
-                  {eventTypeLabel[ev.type]}
-                </span>
               </div>
             )
           })}

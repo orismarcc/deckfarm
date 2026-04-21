@@ -157,6 +157,7 @@ export default function TalhaoPage() {
     observacoes: '',
     clima: '',
     temperatura: '',
+    tipo: 'planejada' as 'planejada' | 'realizada',
   })
   const [fotos, setFotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -346,6 +347,10 @@ export default function TalhaoPage() {
     setModalMode('produto')
     setSelectedRecomendacaoId('')
     const src = editing || planejada
+    // Default tipo: 'realizada' when confirming a planned app; 'planejada' for new manual
+    const tipoDefault = editing
+      ? (editing.tipo as 'planejada' | 'realizada')
+      : planejada ? 'realizada' : 'planejada'
     setForm({
       produto_id: src?.produto_id || '',
       data_aplicacao: src?.data_aplicacao || TODAY,
@@ -355,6 +360,7 @@ export default function TalhaoPage() {
       observacoes: src?.observacoes || '',
       clima: src?.clima || '',
       temperatura: src?.temperatura?.toString() || '',
+      tipo: tipoDefault,
     })
     setFotos(editing?.fotos || [])
     setModalOpen(true)
@@ -425,18 +431,19 @@ export default function TalhaoPage() {
         await loadData()
         setModalOpen(false)
         setEditingAplicacao(null)
-        setForm({ produto_id: '', data_aplicacao: TODAY, dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '' })
+        setForm({ produto_id: '', data_aplicacao: TODAY, dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '', tipo: 'planejada' })
         setFotos([])
         return
       }
 
+      // If confirming a planned app: delete the old planned record
       if (aplicacaoBase?.id && aplicacaoBase.tipo === 'planejada') {
         await db.aplicacoes.delete(aplicacaoBase.id)
       }
       await criarAplicacao({
         talhao_id: id,
         produto_id: form.produto_id,
-        tipo: 'realizada',
+        tipo: form.tipo,
         data_aplicacao: form.data_aplicacao,
         prazo_produto: prod.prazo_medio_aplicacao,
         dose: form.dose ? Number(form.dose) : undefined,
@@ -448,8 +455,8 @@ export default function TalhaoPage() {
         fotos: fotos.length > 0 ? fotos : undefined,
         usuario_id: user.id,
       })
-      // Subtrair quantidade do estoque do produto
-      if (prod.quantidade_disponivel != null && form.dose && areaAplicada) {
+      // Subtrair estoque apenas ao registrar realizada
+      if (form.tipo === 'realizada' && prod.quantidade_disponivel != null && form.dose && areaAplicada) {
         const quantidadeUsada = Number(form.dose) * areaAplicada
         const novaQuantidade = Math.max(0, prod.quantidade_disponivel - quantidadeUsada)
         const now = new Date().toISOString()
@@ -466,7 +473,7 @@ export default function TalhaoPage() {
       setSelectedRecomendacaoId('')
       setForm({
         produto_id: '', data_aplicacao: TODAY,
-        dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '',
+        dose: '', unidade_dose: 'L/ha', area_aplicada: '', observacoes: '', clima: '', temperatura: '', tipo: 'planejada' as const,
       })
     } finally { setLoading(false) }
   }
@@ -1372,19 +1379,48 @@ export default function TalhaoPage() {
       <Modal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setAplicacaoBase(null); setEditingAplicacao(null); setModalMode('produto'); setSelectedRecomendacaoId('') }}
-        title={editingAplicacao ? 'Editar Aplicação' : aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Aplicação' : 'Registrar Aplicação'}
+        title={
+          editingAplicacao ? 'Editar Aplicação'
+          : aplicacaoBase?.tipo === 'planejada'
+            ? (form.tipo === 'realizada' ? 'Confirmar Aplicação' : 'Re-agendar Aplicação')
+          : form.tipo === 'planejada' ? 'Agendar Aplicação' : 'Registrar Aplicação'
+        }
         size="lg"
         footer={
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => { setModalOpen(false); setAplicacaoBase(null); setEditingAplicacao(null); setModalMode('produto'); setSelectedRecomendacaoId('') }} className="flex-1">Cancelar</Button>
             <Button onClick={handleSaveAplicacao} loading={loading} disabled={!form.produto_id} className="flex-1">
-              {editingAplicacao ? 'Salvar Alterações' : aplicacaoBase?.tipo === 'planejada' ? 'Confirmar Realização' : 'Registrar'}
+              {editingAplicacao ? 'Salvar Alterações'
+                : aplicacaoBase?.tipo === 'planejada'
+                  ? (form.tipo === 'realizada' ? 'Confirmar Realização' : 'Re-agendar')
+                : form.tipo === 'planejada' ? 'Agendar' : 'Registrar'}
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
-          {aplicacaoBase?.tipo === 'planejada' && (
+          {/* Tipo toggle — only when not editing */}
+          {!editingAplicacao && (
+            <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-dark)' }}>
+              {(['planejada', 'realizada'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, tipo: t }))}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition"
+                  style={{
+                    background: form.tipo === t ? 'var(--bg-card)' : 'transparent',
+                    color: form.tipo === t ? 'var(--fg)' : 'var(--fg-muted)',
+                    boxShadow: form.tipo === t ? 'var(--shadow-xs)' : 'none',
+                  }}
+                >
+                  {t === 'planejada' ? '📅 Agendar' : '✓ Registrar como realizada'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {aplicacaoBase?.tipo === 'planejada' && form.tipo === 'realizada' && (
             <div className="rounded-xl px-4 py-3 text-xs" style={{ background: 'hsl(210 100% 97%)', color: 'hsl(210 80% 38%)' }}>
               Confirme os dados e registre a aplicação planejada como realizada.
             </div>
