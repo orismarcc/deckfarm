@@ -139,7 +139,9 @@ export async function agendarAplicacoesPorPlantio(
     for (const produto of produtos) {
       if (produtosComRec.has(produto.id)) continue // agrônomo cobriu este produto
 
-      const intervalo = produto.prazo_medio_aplicacao || 21
+      // prazo_medio_aplicacao é apenas sugestivo — só agenda automaticamente se definido
+      if (!produto.prazo_medio_aplicacao) continue
+      const intervalo = produto.prazo_medio_aplicacao
       let dataAplicacao = addDays(dataPlantio, intervalo)
       while (dataAplicacao <= dataColheita) {
         const dataStr = format(dataAplicacao, 'yyyy-MM-dd')
@@ -160,9 +162,10 @@ export async function agendarAplicacoesPorPlantio(
       }
     }
   } else {
-    // Sem recomendação: usa intervalos padrão para todos os produtos
+    // Sem recomendação: agenda apenas se prazo_medio_aplicacao estiver definido (campo informativo)
     for (const produto of produtos) {
-      const intervalo = produto.prazo_medio_aplicacao || 21
+      if (!produto.prazo_medio_aplicacao) continue
+      const intervalo = produto.prazo_medio_aplicacao
       let dataAplicacao = addDays(dataPlantio, intervalo)
       while (dataAplicacao <= dataColheita) {
         const dataStr = format(dataAplicacao, 'yyyy-MM-dd')
@@ -244,8 +247,8 @@ export async function gerarAlertasAutomaticos(usuario_id: string): Promise<void>
     const fazenda = fazendas.find(f => f.id === talhao?.fazenda_id)
     const nomeF = fazenda?.nome ? ` (${fazenda.nome})` : ''
 
-    // Usa data_aplicacao para planejadas, proxima_aplicacao para reais
-    const dataRef = ap.tipo === 'planejada' ? ap.data_aplicacao : ap.proxima_aplicacao
+    // Usa data_aplicacao para planejadas, proxima_aplicacao para reais (com fallback)
+    const dataRef = (ap.tipo === 'planejada' ? ap.data_aplicacao : ap.proxima_aplicacao) ?? ap.data_aplicacao
     const [ry, rm, rd] = dataRef.split('-').map(Number)
     const dataD = new Date(ry, rm - 1, rd)  // local date
     const diff = differenceInDays(dataD, hoje)

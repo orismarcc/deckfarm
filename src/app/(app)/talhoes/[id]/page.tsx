@@ -420,19 +420,15 @@ export default function TalhaoPage() {
 
       // If editing an existing application (realizada or planejada)
       if (editingAplicacao) {
-        const [ay, am, ad] = form.data_aplicacao.split('-').map(Number)
-        const novaProxima = format(addDays(new Date(ay, am - 1, ad), prod.prazo_medio_aplicacao), 'yyyy-MM-dd')
         const now = new Date().toISOString()
-        // For planejadas, status tracks data_aplicacao itself; for realizadas, proxima_aplicacao
-        const novoStatus = form.tipo === 'planejada'
-          ? calcularStatusLocal(form.data_aplicacao)
-          : calcularStatusLocal(novaProxima)
+        const novoStatus = calcularStatusLocal(form.data_aplicacao)
         const updated: Aplicacao = {
           ...editingAplicacao,
           tipo: form.tipo,
           produto_id: form.produto_id,
           data_aplicacao: form.data_aplicacao,
-          proxima_aplicacao: novaProxima,
+          // proxima_aplicacao não é recalculada automaticamente: prazo_medio_aplicacao é apenas informativo
+          proxima_aplicacao: editingAplicacao.proxima_aplicacao,
           status: novoStatus,
           dose: form.dose ? Number(form.dose) : undefined,
           unidade_dose: form.unidade_dose,
@@ -1599,7 +1595,7 @@ export default function TalhaoPage() {
             onChange={e => setForm(f => ({ ...f, produto_id: e.target.value }))}
             options={produtos.map(p => {
               const estoque = p.quantidade_disponivel != null ? ` · ${p.quantidade_disponivel} ${p.unidade_quantidade || 'un'}` : ''
-              return { value: p.id, label: `${p.nome} (cada ${p.prazo_medio_aplicacao}d${estoque})` }
+              return { value: p.id, label: `${p.nome}${p.prazo_medio_aplicacao ? ` · sugestão: cada ${p.prazo_medio_aplicacao}d` : ''}${estoque}` }
             })}
             placeholder="Selecione o produto"
           />
@@ -1611,14 +1607,14 @@ export default function TalhaoPage() {
           />
           {form.produto_id && (() => {
             const prod = produtos.find(p => p.id === form.produto_id)
-            if (!prod || !form.data_aplicacao) return null
-            // Parse as local date to avoid X-1 bug
+            if (!prod || !form.data_aplicacao || !prod.prazo_medio_aplicacao) return null
+            // Apenas sugestão visual — não afeta o salvamento
             const [dy, dm, dd] = form.data_aplicacao.split('-').map(Number)
             const proxima = addDays(new Date(dy, dm - 1, dd), prod.prazo_medio_aplicacao)
             return (
               <div className="px-4 py-3 rounded-xl text-sm"
                 style={{ background: 'hsl(210 100% 97%)', color: 'hsl(210 100% 35%)' }}>
-                <span className="font-medium">Próxima aplicação:</span>{' '}
+                <span className="font-medium">Sugestão de próxima aplicação:</span>{' '}
                 {format(proxima, 'dd/MM/yyyy')} (+{prod.prazo_medio_aplicacao} dias)
               </div>
             )

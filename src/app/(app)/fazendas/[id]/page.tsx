@@ -152,15 +152,16 @@ export default function FazendaDetailPage() {
 
   // ── Produto CRUD ──
   async function saveProduto() {
-    if (!produtoForm.nome || !produtoForm.prazo_medio_aplicacao) return
+    if (!produtoForm.nome) return
     setProdutoLoading(true)
     try {
       const db = getDB()
       const now = new Date().toISOString()
       const qtd = produtoForm.quantidade_disponivel ? Number(produtoForm.quantidade_disponivel) : undefined
       const preco = produtoForm.preco_unitario ? Number(produtoForm.preco_unitario) : undefined
+      const prazo = produtoForm.prazo_medio_aplicacao ? Number(produtoForm.prazo_medio_aplicacao) : undefined
       if (editProduto) {
-        const p = { ...editProduto, nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, updatedAt: now }
+        const p = { ...editProduto, nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: prazo, fabricante: produtoForm.fabricante, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, updatedAt: now }
         await db.produtos.put(p)
         await enqueueSync('produto', 'upsert', p as unknown as Record<string, unknown>)
         if (qtd !== undefined && qtd !== editProduto.quantidade_disponivel && user) {
@@ -176,7 +177,7 @@ export default function FazendaDetailPage() {
           await enqueueSync('estoqueMovimentacao', 'upsert', mov as unknown as Record<string, unknown>)
         }
       } else {
-        const p: Produto = { id: gerarId(), nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante || undefined, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, fazenda_id: id, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
+        const p: Produto = { id: gerarId(), nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: prazo, fabricante: produtoForm.fabricante || undefined, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, fazenda_id: id, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
         await db.produtos.add(p)
         await enqueueSync('produto', 'upsert', p as unknown as Record<string, unknown>)
       }
@@ -592,7 +593,7 @@ export default function FazendaDetailPage() {
                             <span className={produtoTipoColor(p.tipo)}>{produtoTipoLabel(p.tipo)}</span>
                           </div>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
-                            {p.fabricante ? `${p.fabricante} · ` : ''}Reaplicar a cada {p.prazo_medio_aplicacao} dias
+                            {p.fabricante ? `${p.fabricante}` : ''}{p.prazo_medio_aplicacao ? `${p.fabricante ? ' · ' : ''}Sugestão: reaplicar a cada ${p.prazo_medio_aplicacao} dias` : ''}
                           </p>
                           {p.quantidade_disponivel != null && (
                             <p className="text-xs mt-0.5 font-medium" style={{ color: p.quantidade_disponivel <= 5 ? 'hsl(0 72% 45%)' : 'hsl(160 84% 22%)' }}>
@@ -620,7 +621,7 @@ export default function FazendaDetailPage() {
                             <History size={14} />
                           </button>
                         )}
-                        <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao.toString(), fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L', preco_unitario: p.preco_unitario?.toString() || '' }); setProdutoModal(true) }}
+                        <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao?.toString() ?? '', fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L', preco_unitario: p.preco_unitario?.toString() || '' }); setProdutoModal(true) }}
                           className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -791,7 +792,7 @@ export default function FazendaDetailPage() {
         <div className="space-y-4">
           <Input label="Nome do produto" value={produtoForm.nome} onChange={e => setProdutoForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Glifosato 360" />
           <Select label="Tipo" value={produtoForm.tipo} onChange={e => setProdutoForm(f => ({ ...f, tipo: e.target.value as ProdutoTipo }))} options={tiposProduto} />
-          <Input label="Prazo médio de reaplicação (dias)" type="number" value={produtoForm.prazo_medio_aplicacao} onChange={e => setProdutoForm(f => ({ ...f, prazo_medio_aplicacao: e.target.value }))} placeholder="Ex: 21" />
+          <Input label="Prazo médio de reaplicação (dias) — opcional, informativo" type="number" value={produtoForm.prazo_medio_aplicacao} onChange={e => setProdutoForm(f => ({ ...f, prazo_medio_aplicacao: e.target.value }))} placeholder="Ex: 21 (sugestão)" />
           <Input label="Fabricante (opcional)" value={produtoForm.fabricante} onChange={e => setProdutoForm(f => ({ ...f, fabricante: e.target.value }))} placeholder="Ex: Bayer" />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Quantidade disponível" type="number" value={produtoForm.quantidade_disponivel} onChange={e => setProdutoForm(f => ({ ...f, quantidade_disponivel: e.target.value }))} placeholder="Ex: 200" />

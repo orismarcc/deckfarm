@@ -9,7 +9,8 @@
 import { useState, useMemo } from 'react'
 import { differenceInDays, parseISO } from 'date-fns'
 import type { CulturaType } from '@/types'
-import { Leaf, ChevronDown, ChevronUp, FlaskConical } from 'lucide-react'
+import { Leaf, ChevronDown, ChevronUp, FlaskConical, BookOpen } from 'lucide-react'
+import { FenologiaGuia } from './fenologia-guia'
 
 // ── Definição fenológica por cultura ─────────────────────────────────────────
 interface Fase {
@@ -139,6 +140,7 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
   const [expanded,       setExpanded]       = useState(false)
   const [observadoIdx,   setObservadoIdx]   = useState<number | null>(null)
   const [showObs,        setShowObs]        = useState(false)
+  const [showGuia,       setShowGuia]       = useState(false)
 
   // Persistir observação por talhão no localStorage
   const LS_KEY = `fenologia-obs-${talhaoId}`
@@ -196,6 +198,7 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
   }
 
   return (
+    <>
     <div className="card overflow-hidden" style={{ marginBottom: 0 }}>
       {/* ── Cabeçalho ── */}
       <button
@@ -230,6 +233,14 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
                 {faseEsperada.icon} {faseEsperada.label}
               </span>
             )}
+            <button
+              onClick={e => { e.stopPropagation(); setShowGuia(true) }}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg"
+              style={{ background: 'hsl(134 60% 30% / 0.1)', color: 'hsl(134 60% 28%)', border: '1px solid hsl(134 60% 28% / 0.2)' }}
+              title="Ver guia visual fenológico"
+            >
+              <BookOpen size={12} /> Guia
+            </button>
             {expanded
               ? <ChevronUp size={16} style={{ color: 'var(--fg-subtle)' }} />
               : <ChevronDown size={16} style={{ color: 'var(--fg-subtle)' }} />}
@@ -242,7 +253,7 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
         <div style={{ padding: '0 20px 20px' }}>
 
           {semPlantio ? (
-            <div className="rounded-xl p-4 text-center" style={{ background: 'var(--bg-card-alt, hsl(0 0% 96%))' }}>
+            <div className="rounded-xl p-4 text-center" style={{ background: 'var(--bg)' }}>
               <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
                 Registre a data de plantio para visualizar a fenologia esperada.
               </p>
@@ -303,7 +314,7 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
                         {/* Bolha */}
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base font-bold relative"
                           style={{
-                            background: isEsperada ? fase.color : isPassed ? `${fase.color}55` : 'var(--bg-card-alt, #f3f4f6)',
+                            background: isEsperada ? fase.color : isPassed ? `${fase.color}55` : 'var(--bg)',
                             border: isObservada ? `3px solid #2563eb` : isEsperada ? `2px solid ${fase.color}` : '1.5px solid var(--borda)',
                             boxShadow: isEsperada ? `0 0 0 4px ${fase.color}22` : isObservada ? '0 0 0 4px #2563eb22' : 'none',
                             color: isEsperada ? 'white' : isPassed ? fase.color : 'var(--fg-muted)',
@@ -346,7 +357,7 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
               </div>
 
               {/* ── Seção de comparação com campo ── */}
-              <div className="rounded-xl p-4" style={{ background: 'var(--bg-card-alt, hsl(0 0% 97%))' }}>
+              <div className="rounded-xl p-4" style={{ background: 'var(--bg)', border: '1px solid var(--borda)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Leaf size={13} style={{ color: '#2563eb' }} />
@@ -423,5 +434,15 @@ export function FenologiaCard({ cultura, dataPlantio, talhaoId }: FenologiaCardP
         </div>
       )}
     </div>
+
+    {/* ── Guia visual fenológico ── */}
+    {showGuia && (
+      <FenologiaGuia
+        cultura={cultura}
+        faseAtualIdx={idxEsperado >= 0 ? idxEsperado : 0}
+        onClose={() => setShowGuia(false)}
+      />
+    )}
+    </>
   )
 }

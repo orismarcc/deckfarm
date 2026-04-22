@@ -4,27 +4,36 @@ import type { Aplicacao, AplicacaoStatus } from '@/types'
 import { addDays, isToday, isPast, differenceInDays, parseISO, format } from 'date-fns'
 import { v4 as uuidv4 } from 'uuid'
 
-function calcularStatus(proxima_aplicacao: string): AplicacaoStatus {
+function calcularStatus(data_referencia: string | undefined): AplicacaoStatus {
+  if (!data_referencia) return 'dentro_do_prazo'
   // Parse as local date to avoid UTC midnight → previous day in Brazil (X-1 bug)
-  const [y, m, d] = proxima_aplicacao.split('-').map(Number)
-  const proxima = new Date(y, m - 1, d)
+  const [y, m, d] = data_referencia.split('-').map(Number)
+  const ref = new Date(y, m - 1, d)
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
 
-  if (isToday(proxima)) return 'hoje'
-  if (isPast(proxima)) return 'atrasado'
-  const diff = differenceInDays(proxima, hoje)
+  if (isToday(ref)) return 'hoje'
+  if (isPast(ref)) return 'atrasado'
+  const diff = differenceInDays(ref, hoje)
   if (diff <= 7) return 'proximo'
   return 'dentro_do_prazo'
 }
 
-export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplicacao' | 'status' | 'createdAt' | 'updatedAt'> & { prazo_produto: number }): Promise<Aplicacao> {
+// prazo_produto é opcional — campo "prazo_medio_aplicacao" é apenas sugestivo
+export async function criarAplicacao(
+  data: Omit<Aplicacao, 'id' | 'proxima_aplicacao' | 'status' | 'createdAt' | 'updatedAt'> & {
+    prazo_produto?: number
+  }
+): Promise<Aplicacao> {
   const db = getDB()
-  // Parse as local date then add days → format as local date (avoids UTC X-1 bug)
-  const [ay, am, ad] = data.data_aplicacao.split('-').map(Number)
-  const proxima = addDays(new Date(ay, am - 1, ad), data.prazo_produto)
-  const proxima_str = format(proxima, 'yyyy-MM-dd')
   const now = new Date().toISOString()
+
+  // proxima_aplicacao: apenas calculada se prazo_produto foi explicitamente fornecido
+  let proxima_str: string | undefined
+  if (data.prazo_produto) {
+    const [ay, am, ad] = data.data_aplicacao.split('-').map(Number)
+    proxima_str = format(addDays(new Date(ay, am - 1, ad), data.prazo_produto), 'yyyy-MM-dd')
+  }
 
   const aplicacao: Aplicacao = {
     id: uuidv4(),
@@ -33,7 +42,7 @@ export async function criarAplicacao(data: Omit<Aplicacao, 'id' | 'proxima_aplic
     tipo: data.tipo,
     data_aplicacao: data.data_aplicacao,
     proxima_aplicacao: proxima_str,
-    status: calcularStatus(proxima_str),
+    status: calcularStatus(proxima_str ?? data.data_aplicacao),
     dose: data.dose,
     unidade_dose: data.unidade_dose,
     area_aplicada: data.area_aplicada,
@@ -60,7 +69,7 @@ export async function atualizarStatuses(): Promise<void> {
   const db = getDB()
   const all = await db.aplicacoes.toArray()
   const updates = all
-    .map(a => ({ ...a, status: calcularStatus(a.proxima_aplicacao) }))
+    .map(a => ({ ...a, status: calcularStatus(a.proxima_aplicacao ?? a.data_aplicacao) }))
     .filter((a, i) => a.status !== all[i].status)
 
   for (const a of updates) {
@@ -98,6 +107,9 @@ export async function getDashboardStats(usuario_id: string) {
 }
 
 async function gerarNotificacoes(aplicacao: Aplicacao): Promise<void> {
+  // Só gera notificações se proxima_aplicacao está definida
+  if (!aplicacao.proxima_aplicacao) return
+
   const db = getDB()
   const proxima = parseISO(aplicacao.proxima_aplicacao)
   const now = new Date().toISOString()

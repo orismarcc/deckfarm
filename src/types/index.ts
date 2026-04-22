@@ -181,7 +181,7 @@ export interface Produto {
   id: string
   nome: string
   tipo: ProdutoTipo
-  prazo_medio_aplicacao: number
+  prazo_medio_aplicacao?: number   // sugestão informativa — não deve ser usada em lógica de negócio
   fabricante?: string
   registro_mapa?: string
   unidade?: string
@@ -201,7 +201,7 @@ export interface Aplicacao {
   safra_id?: string
   tipo?: 'realizada' | 'planejada' // planejada = auto-agendada, realizada = concluída
   data_aplicacao: string
-  proxima_aplicacao: string
+  proxima_aplicacao?: string
   status: AplicacaoStatus
   dose?: number
   unidade_dose?: string

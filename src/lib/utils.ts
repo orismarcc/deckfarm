@@ -104,7 +104,8 @@ export function produtoTipoColor(tipo: ProdutoTipo): string {
   return map[tipo]
 }
 
-export function diasParaProxima(proxima: string): number {
+export function diasParaProxima(proxima: string | undefined): number {
+  if (!proxima) return 0
   return differenceInDays(localDate(proxima), new Date())
 }
 

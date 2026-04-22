@@ -20,7 +20,6 @@ import {
 import {
   format,
   parseISO,
-  addDays,
   isBefore,
   isToday,
   isPast,
@@ -61,6 +60,7 @@ function isAtiva(rec: Recomendacao): boolean {
 
 interface TalhaoProdutoEntry {
   produto_id: string
+  selected: boolean       // usuário deve selecionar explicitamente
   data_aplicacao: string
   dose: string
   unidade_dose: string
@@ -163,9 +163,11 @@ export default function RecomendacoesPage() {
         talhao_id: t.id,
         selected: false,
         expanded: false,
+        // Produtos iniciam desmarcados — o usuário seleciona explicitamente
         produtos: produtos.map(p => ({
           produto_id: p.id,
-          data_aplicacao: dataInicio,
+          selected: false,
+          data_aplicacao: '',
           dose: '',
           unidade_dose: '',
         })),
@@ -184,6 +186,26 @@ export default function RecomendacoesPage() {
   function toggleExpand(idx: number) {
     setTalhaoEntries(prev =>
       prev.map((e, i) => (i !== idx ? e : { ...e, expanded: !e.expanded }))
+    )
+  }
+
+  // Seleciona/deseleciona um produto de forma explícita por talhão
+  function toggleProduto(talhaoIdx: number, prodIdx: number) {
+    setTalhaoEntries(prev =>
+      prev.map((e, i) => {
+        if (i !== talhaoIdx) return e
+        const produtos = e.produtos.map((p, pi) => {
+          if (pi !== prodIdx) return p
+          const nowSelected = !p.selected
+          return {
+            ...p,
+            selected: nowSelected,
+            // Pré-preenche a data com dataInicio ao selecionar; limpa ao desmarcar
+            data_aplicacao: nowSelected ? (dataInicio || '') : '',
+          }
+        })
+        return { ...e, produtos }
+      })
     )
   }
 
@@ -280,8 +302,9 @@ export default function RecomendacoesPage() {
       const aplicacoes: Aplicacao[] = []
 
       for (const te of selectedTalhoes) {
-        for (const pe of te.produtos) {
-          if (!pe.data_aplicacao) continue
+        // Apenas produtos explicitamente selecionados pelo usuário
+        const produtosSelecionados = te.produtos.filter(pe => pe.selected && pe.data_aplicacao)
+        for (const pe of produtosSelecionados) {
           const aplDate = pe.data_aplicacao
 
           // 2. RecomendacaoAplicacao record
@@ -298,19 +321,14 @@ export default function RecomendacoesPage() {
           recApls.push(recApl)
 
           // 3. Aplicacao (tipo='planejada')
-          const produto = (produtosByFazenda[fazendaId] ?? []).find(
-            p => p.id === pe.produto_id
-          )
-          const intervalo = produto?.prazo_medio_aplicacao ?? 21
-          const proximaDate = format(addDays(parseISO(aplDate), intervalo), 'yyyy-MM-dd')
-
+          // proxima_aplicacao não é calculada automaticamente — campo é apenas sugestivo
           const apl: Aplicacao = {
             id: gerarId(),
             talhao_id: te.talhao_id,
             produto_id: pe.produto_id,
             tipo: 'planejada',
             data_aplicacao: aplDate,
-            proxima_aplicacao: proximaDate,
+            // proxima_aplicacao omitida: prazo médio é apenas informativo, não lógica de negócio
             status: calcStatus(aplDate),
             dose: pe.dose ? parseFloat(pe.dose) : undefined,
             unidade_dose: pe.unidade_dose || undefined,
@@ -555,12 +573,15 @@ export default function RecomendacoesPage() {
                 value={dataInicio}
                 onChange={e => {
                   setDataInicio(e.target.value)
-                  // propagate to talhão produto entries that haven't been set
+                  // Propaga para produtos selecionados que ainda não tiveram a data customizada
                   setTalhaoEntries(prev =>
                     prev.map(te => ({
                       ...te,
                       produtos: te.produtos.map(p =>
-                        p.data_aplicacao ? p : { ...p, data_aplicacao: e.target.value }
+                        // Só atualiza se selecionado E se a data é vazia ou ainda é a data-início anterior
+                        p.selected && (!p.data_aplicacao || p.data_aplicacao === dataInicio)
+                          ? { ...p, data_aplicacao: e.target.value }
+                          : p
                       ),
                     }))
                   )
@@ -649,74 +670,125 @@ export default function RecomendacoesPage() {
 
                         {/* Products sub-section */}
                         {te.selected && te.expanded && (
-                          <div className="px-4 pb-4 pt-2 space-y-4">
+                          <div className="px-4 pb-4 pt-2 space-y-3">
                             {produtosCurrent.length === 0 ? (
                               <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
                                 Nenhum produto cadastrado nesta fazenda.
                               </p>
                             ) : (
-                              produtosCurrent.map((prod, pIdx) => {
-                                const pe = te.produtos[pIdx]
-                                if (!pe) return null
-                                const dateKey = `data_${te.talhao_id}_${prod.id}`
-                                return (
-                                  <div
-                                    key={prod.id}
-                                    className="rounded-xl p-3 space-y-3"
-                                    style={{
-                                      background: 'var(--bg)',
-                                      border: '1px solid var(--borda)',
-                                    }}
-                                  >
-                                    <p
-                                      className="text-xs font-semibold uppercase tracking-wide"
-                                      style={{ color: 'var(--fg-muted)' }}
+                              <>
+                                <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                                  Selecione os produtos que deseja incluir neste talhão:
+                                </p>
+                                {produtosCurrent.map((prod, pIdx) => {
+                                  const pe = te.produtos[pIdx]
+                                  if (!pe) return null
+                                  const dateKey = `data_${te.talhao_id}_${prod.id}`
+                                  return (
+                                    <div
+                                      key={prod.id}
+                                      className="rounded-xl overflow-hidden"
+                                      style={{
+                                        border: pe.selected
+                                          ? '1.5px solid hsl(160 84% 22% / 0.45)'
+                                          : '1px solid var(--borda)',
+                                      }}
                                     >
-                                      {prod.nome}
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                      <Input
-                                        label="Data de Aplicação"
-                                        type="date"
-                                        value={pe.data_aplicacao}
-                                        min={dataInicio}
-                                        max={dataFim}
-                                        onChange={e =>
-                                          setProdutoField(
-                                            tIdx,
-                                            pIdx,
-                                            'data_aplicacao',
-                                            e.target.value
-                                          )
-                                        }
-                                        error={errors[dateKey]}
-                                      />
-                                      <Input
-                                        label="Dose"
-                                        type="number"
-                                        placeholder="Ex: 2.5"
-                                        value={pe.dose}
-                                        onChange={e =>
-                                          setProdutoField(tIdx, pIdx, 'dose', e.target.value)
-                                        }
-                                      />
-                                      <Input
-                                        label="Unidade"
-                                        placeholder="Ex: L/ha"
-                                        value={pe.unidade_dose}
-                                        onChange={e =>
-                                          setProdutoField(
-                                            tIdx,
-                                            pIdx,
-                                            'unidade_dose',
-                                            e.target.value
-                                          )
-                                        }
-                                      />
+                                      {/* Cabeçalho do produto com checkbox de seleção */}
+                                      <div
+                                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
+                                        style={{
+                                          background: pe.selected
+                                            ? 'hsl(160 84% 22% / 0.06)'
+                                            : 'var(--bg)',
+                                        }}
+                                        onClick={() => toggleProduto(tIdx, pIdx)}
+                                      >
+                                        <div
+                                          className="flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all"
+                                          style={{
+                                            borderColor: pe.selected
+                                              ? 'hsl(160 84% 22%)'
+                                              : 'var(--borda)',
+                                            background: pe.selected
+                                              ? 'hsl(160 84% 22%)'
+                                              : 'transparent',
+                                          }}
+                                        >
+                                          {pe.selected && (
+                                            <Check size={9} color="white" strokeWidth={3} />
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <span
+                                            className="text-xs font-semibold"
+                                            style={{
+                                              color: pe.selected
+                                                ? 'hsl(160 84% 22%)'
+                                                : 'var(--fg)',
+                                            }}
+                                          >
+                                            {prod.nome}
+                                          </span>
+                                          <span
+                                            className="ml-2 text-[10px]"
+                                            style={{ color: 'var(--fg-subtle)' }}
+                                          >
+                                            {prod.tipo}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Campos de configuração — visíveis apenas quando selecionado */}
+                                      {pe.selected && (
+                                        <div
+                                          className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-3 pb-3 pt-2"
+                                          style={{ background: 'var(--bg-card)' }}
+                                        >
+                                          <Input
+                                            label="Data de Aplicação"
+                                            type="date"
+                                            value={pe.data_aplicacao}
+                                            min={dataInicio}
+                                            max={dataFim}
+                                            onChange={e =>
+                                              setProdutoField(
+                                                tIdx,
+                                                pIdx,
+                                                'data_aplicacao',
+                                                e.target.value
+                                              )
+                                            }
+                                            error={errors[dateKey]}
+                                          />
+                                          <Input
+                                            label="Dose"
+                                            type="number"
+                                            placeholder="Ex: 2.5"
+                                            value={pe.dose}
+                                            onChange={e =>
+                                              setProdutoField(tIdx, pIdx, 'dose', e.target.value)
+                                            }
+                                          />
+                                          <Input
+                                            label="Unidade"
+                                            placeholder="Ex: L/ha"
+                                            value={pe.unidade_dose}
+                                            onChange={e =>
+                                              setProdutoField(
+                                                tIdx,
+                                                pIdx,
+                                                'unidade_dose',
+                                                e.target.value
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                )
-                              })
+                                  )
+                                })}
+                              </>
                             )}
                           </div>
                         )}
