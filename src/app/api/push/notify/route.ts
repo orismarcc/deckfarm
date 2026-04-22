@@ -1,11 +1,13 @@
 /**
  * POST /api/push/notify
  * Send a push notification to all subscriptions of a user (or all users for a fazenda).
- * Body: { userId?: string, fazendaId?: string, title: string, body: string, url?: string, tag?: string }
+ * Body: { userId?: string, title: string, message: string, url?: string, tag?: string }
  * Protected: requires ADMIN_SECRET header OR valid JWT.
+ *
+ * NOTE: webpush.setVapidDetails() is called lazily inside the handler (not at module level)
+ * so the build doesn't fail when VAPID env vars are absent in the build environment.
  */
 import { NextResponse } from 'next/server'
-import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 import { verifyToken } from '@/lib/auth'
 
@@ -14,11 +16,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:contato@deckfarm.com.br',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+// Lazy-init: only configure web-push once, on first real request
+let webpushConfigured = false
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let webpushLib: any = null
+
+async function getWebPush() {
+  if (!webpushConfigured) {
+    const wp = (await import('web-push')).default
+    const publicKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    const privateKey = process.env.VAPID_PRIVATE_KEY
+    const subject    = process.env.VAPID_SUBJECT || 'mailto:contato@deckfarm.com.br'
+
+    if (!publicKey || !privateKey) {
+      throw new Error('VAPID keys not configured. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY env vars.')
+    }
+
+    wp.setVapidDetails(subject, publicKey, privateKey)
+    webpushLib = wp
+    webpushConfigured = true
+  }
+  return webpushLib
+}
 
 export async function POST(req: Request) {
   try {
@@ -49,15 +68,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const payload = JSON.stringify({ title, body: message, url, tag })
-    let sent = 0; const expired: string[] = []
+    if (!subs || subs.length === 0) {
+      return NextResponse.json({ ok: true, sent: 0 })
+    }
+
+    const wp = await getWebPush()
+    const notifPayload = JSON.stringify({ title, body: message, url, tag })
+    let sent = 0
+    const expired: string[] = []
 
     await Promise.allSettled(
-      (subs || []).map(async sub => {
+      subs.map(async sub => {
         try {
-          await webpush.sendNotification(
+          await wp.sendNotification(
             { endpoint: sub.endpoint, keys: sub.keys },
-            payload
+            notifPayload
           )
           sent++
         } catch (err: unknown) {
