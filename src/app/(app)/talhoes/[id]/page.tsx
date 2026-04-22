@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
+import { FenologiaCard } from '@/components/talhoes/fenologia-card'
 import { culturaLabel, culturaIcon, gerarId } from '@/lib/utils'
 import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao, SemeaduraEtapa } from '@/types'
 import { PhotoPicker } from '@/components/ui/photo-picker'
@@ -1449,6 +1450,17 @@ export default function TalhaoPage() {
           </div>
         )}
       </div>
+
+      {/* ── Fenologia ── */}
+      {talhao && (
+        <div className="animate-enter animate-enter-6 mb-8">
+          <FenologiaCard
+            cultura={talhao.cultura}
+            dataPlantio={talhao.data_plantio}
+            talhaoId={talhao.id}
+          />
+        </div>
+      )}
 
       {/* ── Modal Plantio ── */}
       <Modal
