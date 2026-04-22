@@ -1,5 +1,9 @@
 'use client'
-import { useEffect, useRef } from 'react'
+/**
+ * TalhaoMap — Mapa de localização do talhão (pino + polígono GeoJSON).
+ * Usa MapLibre GL JS (sem Leaflet, sem API key).
+ */
+import { useEffect, useRef, useState } from 'react'
 import { MapPin } from 'lucide-react'
 
 interface TalhaoMapProps {
@@ -11,89 +15,172 @@ interface TalhaoMapProps {
   height?: string
 }
 
-export function TalhaoMap({ latitude, longitude, coordenadas, onLocationSelect, readOnly = false, height = '260px' }: TalhaoMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<unknown>(null)
+const OSM_STYLE = {
+  version: 8 as const,
+  sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' } },
+  layers: [{ id: 'osm-tiles', type: 'raster' as const, source: 'osm' }],
+}
 
+const SAT_STYLE = {
+  version: 8 as const,
+  sources: { esri: { type: 'raster' as const, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '© Esri' } },
+  layers: [{ id: 'esri-tiles', type: 'raster' as const, source: 'esri' }],
+}
+
+export function TalhaoMap({
+  latitude,
+  longitude,
+  coordenadas,
+  onLocationSelect,
+  readOnly = false,
+  height = '260px',
+}: TalhaoMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef    = useRef<any>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerRef = useRef<any>(null)
+  const [satellite, setSatellite] = useState(false)
+  const [ready,     setReady]     = useState(false)
+
+  // ── CSS MapLibre ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || typeof window === 'undefined') return
-    if (mapInstanceRef.current) return
+    if (document.getElementById('maplibre-css')) return
+    const link = document.createElement('link')
+    link.id   = 'maplibre-css'
+    link.rel  = 'stylesheet'
+    link.href = 'https://unpkg.com/maplibre-gl@5.2.0/dist/maplibre-gl.css'
+    document.head.appendChild(link)
+  }, [])
 
-    import('leaflet').then((L) => {
-      // Fix default icon paths broken by webpack
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-      })
+  // ── Inicializar mapa ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return
+    let cancelled = false
 
-      const defaultLat = latitude || -12.5
-      const defaultLng = longitude || -55.0
-      const zoom = latitude ? 14 : 5
+    import('maplibre-gl').then(({ default: maplibregl }) => {
+      if (cancelled || !containerRef.current || mapRef.current) return
+      try {
+        const centerLng = longitude ?? -52.0
+        const centerLat = latitude  ?? -12.5
+        const zoom      = latitude  ? 14 : 5
 
-      const map = L.map(mapRef.current!).setView([defaultLat, defaultLng], zoom)
-      mapInstanceRef.current = map
-
-      // Satellite layer (Esri)
-      const satellite = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { attribution: 'Tiles © Esri', maxZoom: 19 }
-      )
-      // Street layer (OSM)
-      const streets = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        { attribution: '© OpenStreetMap contributors' }
-      )
-
-      satellite.addTo(map)
-      L.control.layers({ 'Satélite': satellite, 'Mapa': streets }).addTo(map)
-
-      // Existing marker
-      let marker: ReturnType<typeof L.marker> | null = null
-      if (latitude && longitude) {
-        marker = L.marker([latitude, longitude]).addTo(map)
-      }
-
-      // Existing polygon
-      if (coordenadas) {
-        try {
-          const geo = JSON.parse(coordenadas)
-          L.geoJSON(geo, {
-            style: { color: '#0A5B32', weight: 2, fillOpacity: 0.18, fillColor: '#34d399' },
-          }).addTo(map)
-        } catch { /* invalid geoJSON */ }
-      }
-
-      // Click to place marker
-      if (!readOnly && onLocationSelect) {
-        map.on('click', (e: L.LeafletMouseEvent) => {
-          if (marker) marker.remove()
-          marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
-          onLocationSelect(e.latlng.lat, e.latlng.lng)
+        const map = new maplibregl.Map({
+          container: containerRef.current!,
+          style: OSM_STYLE,
+          center: [centerLng, centerLat],
+          zoom,
+          attributionControl: { compact: true },
         })
+
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+
+        map.on('load', () => {
+          if (cancelled) return
+
+          // Polígono GeoJSON (se houver)
+          if (coordenadas) {
+            try {
+              const geo = JSON.parse(coordenadas)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              map.addSource('polygon', { type: 'geojson', data: geo as any })
+              map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
+              map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
+            } catch { /* GeoJSON inválido */ }
+          }
+
+          // Marcador inicial
+          if (latitude && longitude) {
+            markerRef.current = new maplibregl.Marker({ color: '#16a34a' })
+              .setLngLat([longitude, latitude])
+              .addTo(map)
+          }
+
+          // Clique para posicionar pino
+          if (!readOnly && onLocationSelect) {
+            map.getCanvas().style.cursor = 'crosshair'
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            map.on('click', (e: any) => {
+              const { lng, lat } = e.lngLat
+              if (markerRef.current) markerRef.current.remove()
+              markerRef.current = new maplibregl.Marker({ color: '#16a34a' })
+                .setLngLat([lng, lat])
+                .addTo(map)
+              onLocationSelect(lat, lng)
+            })
+          }
+
+          mapRef.current = map
+          if (!cancelled) setReady(true)
+        })
+
+        map.on('error', (e: { error: Error }) => console.warn('[TalhaoMap]', e.error))
+      } catch (err) {
+        console.error('[TalhaoMap] init:', err)
       }
-    })
+    }).catch(err => console.error('[TalhaoMap] import:', err))
 
     return () => {
-      if (mapInstanceRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(mapInstanceRef.current as any).remove()
-        mapInstanceRef.current = null
+      cancelled = true
+      if (mapRef.current) {
+        try { mapRef.current.remove() } catch { /* ok */ }
+        mapRef.current = null
+        markerRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Toggle satélite ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    try { map.setStyle(satellite ? SAT_STYLE : OSM_STYLE) } catch { /* ok */ }
+  }, [satellite, ready])
+
+  // Recriar camadas após trocar estilo
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function onStyleData() {
+      try {
+        if (coordenadas && !map.getSource('polygon')) {
+          const geo = JSON.parse(coordenadas)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          map.addSource('polygon', { type: 'geojson', data: geo as any })
+          map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
+          map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
+        }
+      } catch { /* ok */ }
+    }
+    map.on('styledata', onStyleData)
+    return () => { try { map.off('styledata', onStyleData) } catch { /* ok */ } }
+  }, [ready, coordenadas])
 
   return (
     <div>
-      {/* Leaflet CSS injected via link tag */}
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <div
-        ref={mapRef}
-        style={{ height, width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--borda)' }}
-      />
+      {/* Toggle satélite / mapa */}
+      <div style={{ position: 'relative' }}>
+        <div ref={containerRef}
+          style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--borda, #e5e7eb)' }}
+        />
+        {ready && (
+          <button
+            onClick={() => setSatellite(v => !v)}
+            style={{
+              position: 'absolute', top: 8, left: 8, zIndex: 5,
+              background: satellite ? '#1d4ed8' : 'rgba(255,255,255,0.95)',
+              color: satellite ? '#fff' : '#374151',
+              border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
+              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            }}
+          >
+            🛰 {satellite ? 'Mapa' : 'Satélite'}
+          </button>
+        )}
+      </div>
       {!readOnly && (
         <p className="flex items-center gap-1 text-xs mt-1.5" style={{ color: 'var(--fg-subtle)' }}>
           <MapPin size={11} /> Clique no mapa para marcar a localização do talhão
