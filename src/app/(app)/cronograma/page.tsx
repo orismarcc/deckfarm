@@ -131,7 +131,11 @@ export default function CronogramaPage() {
       await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
       processSyncQueue()
     }
+    // Update both the main list AND the open day modal so UI reflects immediately
     setAplicacoes(prev => prev.map(a => a.id === aplicacaoId ? { ...a, tipo: novoTipo } : a))
+    setDayModalEvents(prev => prev.map(ev =>
+      ev.aplicacaoId === aplicacaoId ? { ...ev, aplicacaoTipo: novoTipo } : ev
+    ))
   }
 
   // ── Build unified event list ─────────────────────────────────────────────

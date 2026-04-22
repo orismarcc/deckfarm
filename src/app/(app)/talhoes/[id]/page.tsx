@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { getDB } from '@/lib/db'
-import { criarAplicacao } from '@/lib/db/aplicacoes'
+import { criarAplicacao, atualizarStatuses } from '@/lib/db/aplicacoes'
 import { agendarAplicacoesPorPlantio, criarOuAtualizarSafra, CICLO_CULTURA } from '@/lib/db/agronomo'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import { Modal } from '@/components/ui/modal'
@@ -192,6 +192,8 @@ export default function TalhaoPage() {
     const t = await db.talhoes.get(id)
     if (!t) return
     setTalhao(t)
+    // Refresh statuses so 'hoje'/'atrasado' are always accurate regardless of when app was saved
+    await atualizarStatuses()
     const [faz, prods, apps] = await Promise.all([
       db.fazendas.get(t.fazenda_id),
       db.produtos.where('fazenda_id').equals(t.fazenda_id).toArray(),
@@ -577,6 +579,19 @@ export default function TalhaoPage() {
     } finally { setAnotacaoLoading(false) }
   }
 
+  // ── Marcar aplicação como realizada (sem abrir modal) ────────────────────
+  async function handleMarcarRealizada(aplicacaoId: string) {
+    const db = getDB()
+    const now = new Date().toISOString()
+    await db.aplicacoes.update(aplicacaoId, { tipo: 'realizada', updatedAt: now, _syncStatus: 'pending' })
+    const updated = await db.aplicacoes.get(aplicacaoId)
+    if (updated) {
+      await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
+      processSyncQueue()
+    }
+    await loadData()
+  }
+
   // ── Derived semeadura data ────────────────────────────────────────────────
   const totalSemeado   = etapas.reduce((acc, e) => acc + e.area_semeada, 0)
   const areaRestante   = talhao ? Math.max(0, talhao.area - totalSemeado) : 0
@@ -589,8 +604,10 @@ export default function TalhaoPage() {
   // ── Derived data ─────────────────────────────────────────────────────────
   const planejadas = aplicacoes.filter(a => a.tipo === 'planejada')
   const realizadas = aplicacoes.filter(a => a.tipo !== 'planejada')
-  const atrasadas = [...planejadas, ...realizadas].filter(a => a.status === 'atrasado')
-  const proximas = [...planejadas, ...realizadas].filter(a => a.status === 'proximo' || a.status === 'hoje')
+  // Contagem de alertas — apenas não-realizadas
+  const hoje_apls  = planejadas.filter(a => a.status === 'hoje')
+  const atrasadas  = planejadas.filter(a => a.status === 'atrasado')
+  const proximas   = planejadas.filter(a => a.status === 'proximo')
 
   const hojeDate = new Date(); hojeDate.setHours(0, 0, 0, 0)
   let cicloProgress = -1
@@ -869,8 +886,22 @@ export default function TalhaoPage() {
       )}
 
       {/* Alert cards */}
-      {(atrasadas.length > 0 || proximas.length > 0) && (
-        <div className="animate-enter animate-enter-2 grid grid-cols-2 gap-3 mb-5">
+      {(hoje_apls.length > 0 || atrasadas.length > 0 || proximas.length > 0) && (
+        <div className="animate-enter animate-enter-2 grid gap-3 mb-5"
+          style={{ gridTemplateColumns: `repeat(${[hoje_apls.length > 0, atrasadas.length > 0, proximas.length > 0].filter(Boolean).length}, 1fr)` }}>
+          {hoje_apls.length > 0 && (
+            <div className="rounded-2xl p-4 flex items-center gap-3"
+              style={{ background: 'hsl(210 100% 96%)', border: '1px solid hsl(210 100% 88%)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'hsl(210 100% 90%)' }}>
+                <CheckCircle2 className="w-5 h-5" style={{ color: 'hsl(210 100% 45%)' }} />
+              </div>
+              <div>
+                <div className="text-xl font-bold" style={{ color: 'hsl(210 100% 38%)' }}>{hoje_apls.length}</div>
+                <div className="text-xs" style={{ color: 'hsl(210 100% 50%)' }}>hoje</div>
+              </div>
+            </div>
+          )}
           {atrasadas.length > 0 && (
             <div className="rounded-2xl p-4 flex items-center gap-3"
               style={{ background: 'hsl(0 86% 97%)', border: '1px solid hsl(0 86% 90%)' }}>
@@ -1004,12 +1035,21 @@ export default function TalhaoPage() {
                           >
                             <Pencil size={14} />
                           </button>
+                          {/* Quick mark as done — user confirms application was performed */}
+                          <button
+                            onClick={() => handleMarcarRealizada(a.id)}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all"
+                            style={{ borderColor: 'hsl(160 84% 22% / 0.4)', color: 'hsl(160 84% 22%)', background: 'hsl(160 84% 22% / 0.06)' }}
+                            title="Marcar como feita"
+                          >
+                            <CheckCircle2 size={12} /> Feita
+                          </button>
                           <Button
                             size="sm"
                             onClick={() => openAplicacaoModal(a)}
                             style={{ background: 'hsl(160 84% 22%)', color: 'white', fontSize: '11px', padding: '0.35rem 0.75rem' }}
                           >
-                            <CheckCircle2 size={12} /> Realizar
+                            + Detalhes
                           </Button>
                         </>
                       )}
