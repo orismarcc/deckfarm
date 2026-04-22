@@ -132,6 +132,20 @@ export async function enqueueSync(
   })
 }
 
+/**
+ * Mapeamento explícito de entity name (syncQueue) → nome da tabela Dexie (camelCase).
+ * IMPORTANTE: não usar lógica genérica de concatenar 's' — nomes snake_case/camelCase diferem.
+ */
+const ENTITY_TO_DEXIE: Record<string, string> = {
+  aplicacao:            'aplicacoes',
+  fazenda:              'fazendas',
+  talhao:               'talhoes',
+  produto:              'produtos',
+  semeadura_etapa:      'semeaduraEtapas',
+  estoqueMovimentacao:  'estoqueMovimentacoes',
+  recomendacao:         'recomendacoes',
+}
+
 export async function processSyncQueue(): Promise<void> {
   if (!navigator.onLine) return
   const db = getDB()
@@ -146,13 +160,17 @@ export async function processSyncQueue(): Promise<void> {
       })
       if (res.ok) {
         await db.syncQueue.delete(item.id)
-        // Mark entity as synced
-        const entityDb = db[item.entity === 'aplicacao' ? 'aplicacoes' : `${item.entity}s` as keyof typeof db] as any
+        // Marca como synced usando mapeamento correto (evita bug de snake_case vs camelCase)
+        const tableName = ENTITY_TO_DEXIE[item.entity]
+        const entityDb = tableName ? (db as unknown as Record<string, { update: (id: string, changes: object) => Promise<unknown> }>)[tableName] : undefined
         if (entityDb && item.action !== 'delete') {
-          await entityDb.update((item.data as any).id, { _syncStatus: 'synced' })
+          await entityDb.update((item.data as Record<string, unknown>).id as string, { _syncStatus: 'synced' })
         }
       } else if (item.retries >= 3) {
-        await db.syncQueue.delete(item.id)
+        // Não descarta silenciosamente: mantém no log mas para de tentar
+        // (evita perda de dados por falha temporária do servidor)
+        console.warn(`[sync] Falha persistente ao sincronizar ${item.entity}:${(item.data as Record<string,unknown>).id} após 3 tentativas. Item mantido com erro.`)
+        await db.syncQueue.update(item.id, { retries: item.retries + 1 })
       } else {
         await db.syncQueue.update(item.id, { retries: item.retries + 1 })
       }
