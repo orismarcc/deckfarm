@@ -194,7 +194,7 @@ export default function TalhaoPage() {
     const [faz, prods, apps] = await Promise.all([
       db.fazendas.get(t.fazenda_id),
       db.produtos.where('fazenda_id').equals(t.fazenda_id).toArray(),
-      db.aplicacoes.where('talhao_id').equals(id).reverse().sortBy('data_aplicacao'),
+      db.aplicacoes.where('talhao_id').equals(id).filter(a => !a.deleted_at).reverse().sortBy('data_aplicacao'),
     ])
     setFazenda(faz || null)
     setProdutos(prods)
@@ -369,9 +369,11 @@ export default function TalhaoPage() {
 
   async function handleDeleteAplicacao(aplicacaoId: string) {
     const db = getDB()
-    await db.aplicacoes.delete(aplicacaoId)
-    // Sync deletion to Supabase so it doesn't come back on next pull
-    await enqueueSync('aplicacao', 'delete', { id: aplicacaoId })
+    const now = new Date().toISOString()
+    // Soft-delete: mark deleted_at instead of removing — prevents ghost resurrection on sync
+    await db.aplicacoes.update(aplicacaoId, { deleted_at: now, _syncStatus: 'pending' })
+    // Sync the soft-delete to Supabase
+    await enqueueSync('aplicacao', 'upsert', { id: aplicacaoId, deleted_at: now, updatedAt: now })
     processSyncQueue()
     setAplicacoes(prev => prev.filter(a => a.id !== aplicacaoId))
     setDeletingApId(null)

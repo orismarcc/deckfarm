@@ -43,7 +43,7 @@ export default function AplicacoesPage() {
       const db = getDB()
       const fazs = await db.fazendas.where('usuario_id').equals(user.id).toArray()
       setFazendas(fazs)
-      const apps = await db.aplicacoes.where('usuario_id').equals(user.id).reverse().sortBy('data_aplicacao')
+      const apps = await db.aplicacoes.where('usuario_id').equals(user.id).filter(a => !a.deleted_at).reverse().sortBy('data_aplicacao')
       const enriched = await Promise.all(apps.map(async a => {
         const [talhao, produto] = await Promise.all([db.talhoes.get(a.talhao_id), db.produtos.get(a.produto_id)])
         return { ...a, talhao, produto }
@@ -57,9 +57,10 @@ export default function AplicacoesPage() {
 
   async function handleDelete(id: string) {
     const db = getDB()
-    await db.aplicacoes.delete(id)
-    // Sync deletion to Supabase so the record doesn't come back on next pull
-    await enqueueSync('aplicacao', 'delete', { id })
+    const now = new Date().toISOString()
+    // Soft-delete: set deleted_at so the sync bulkPut never resurrects it
+    await db.aplicacoes.update(id, { deleted_at: now, _syncStatus: 'pending' })
+    await enqueueSync('aplicacao', 'upsert', { id, deleted_at: now, updatedAt: now })
     processSyncQueue()
     setAplicacoes(prev => prev.filter(a => a.id !== id))
   }

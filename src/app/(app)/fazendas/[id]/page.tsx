@@ -14,7 +14,7 @@ import { MembrosSection } from '@/components/fazenda/membros-section'
 import { gerarId, culturaLabel, culturaIcon, produtoTipoLabel, produtoTipoColor, formatDate } from '@/lib/utils'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo, EstoqueMovimentacao } from '@/types'
-import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud, History, TrendingUp, ArrowUp, ArrowDown, ArrowLeftRight } from 'lucide-react'
+import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud, History, TrendingUp, ArrowUp, ArrowDown, ArrowLeftRight, Map, DollarSign, Receipt } from 'lucide-react'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -23,6 +23,11 @@ import dynamic from 'next/dynamic'
 const TalhaoMap = dynamic(
   () => import('@/components/map/talhao-map').then(m => m.TalhaoMap),
   { ssr: false, loading: () => <div className="h-[240px] rounded-xl animate-pulse" style={{ background: 'var(--bg-dark)' }} /> }
+)
+
+const TalhoesMap = dynamic(
+  () => import('@/components/map/talhoes-map'),
+  { ssr: false, loading: () => <div className="rounded-2xl animate-pulse" style={{ height: '520px', background: 'var(--bg-dark)' }} /> }
 )
 
 const culturas: { value: CulturaType; label: string }[] = [
@@ -42,7 +47,7 @@ const tiposProduto: { value: ProdutoTipo; label: string }[] = [
   { value: 'inseticida', label: 'Inseticida' },
 ]
 
-type Tab = 'talhoes' | 'produtos' | 'equipe' | 'clima'
+type Tab = 'talhoes' | 'produtos' | 'mapa' | 'financeiro' | 'equipe' | 'clima'
 
 export default function FazendaDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -73,7 +78,7 @@ export default function FazendaDetailPage() {
   // Produto modal
   const [produtoModal, setProdutoModal] = useState(false)
   const [editProduto, setEditProduto] = useState<Produto | null>(null)
-  const [produtoForm, setProdutoForm] = useState({ nome: '', tipo: 'herbicida' as ProdutoTipo, prazo_medio_aplicacao: '', fabricante: '', quantidade_disponivel: '', unidade_quantidade: 'L' })
+  const [produtoForm, setProdutoForm] = useState({ nome: '', tipo: 'herbicida' as ProdutoTipo, prazo_medio_aplicacao: '', fabricante: '', quantidade_disponivel: '', unidade_quantidade: 'L', preco_unitario: '' })
   const [produtoLoading, setProdutoLoading] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -87,7 +92,7 @@ export default function FazendaDetailPage() {
     setTalhoes(tals)
     setProdutos(prods)
     if (tals.length > 0) {
-      const apps = await db.aplicacoes.where('talhao_id').anyOf(tals.map(t => t.id)).toArray()
+      const apps = await db.aplicacoes.where('talhao_id').anyOf(tals.map(t => t.id)).filter(a => !a.deleted_at).toArray()
       setAplicacoes(apps)
     }
     const movs = await db.estoqueMovimentacoes.where('fazenda_id').equals(id).reverse().sortBy('data')
@@ -153,8 +158,9 @@ export default function FazendaDetailPage() {
       const db = getDB()
       const now = new Date().toISOString()
       const qtd = produtoForm.quantidade_disponivel ? Number(produtoForm.quantidade_disponivel) : undefined
+      const preco = produtoForm.preco_unitario ? Number(produtoForm.preco_unitario) : undefined
       if (editProduto) {
-        const p = { ...editProduto, nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, updatedAt: now }
+        const p = { ...editProduto, nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, updatedAt: now }
         await db.produtos.put(p)
         await enqueueSync('produto', 'upsert', p as unknown as Record<string, unknown>)
         if (qtd !== undefined && qtd !== editProduto.quantidade_disponivel && user) {
@@ -170,7 +176,7 @@ export default function FazendaDetailPage() {
           await enqueueSync('estoqueMovimentacao', 'upsert', mov as unknown as Record<string, unknown>)
         }
       } else {
-        const p: Produto = { id: gerarId(), nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante || undefined, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, fazenda_id: id, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
+        const p: Produto = { id: gerarId(), nome: produtoForm.nome, tipo: produtoForm.tipo, prazo_medio_aplicacao: Number(produtoForm.prazo_medio_aplicacao), fabricante: produtoForm.fabricante || undefined, quantidade_disponivel: qtd, unidade_quantidade: produtoForm.unidade_quantidade || undefined, preco_unitario: preco, fazenda_id: id, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
         await db.produtos.add(p)
         await enqueueSync('produto', 'upsert', p as unknown as Record<string, unknown>)
       }
@@ -225,6 +231,19 @@ export default function FazendaDetailPage() {
     } finally { setReporLoading(false) }
   }
 
+  // ── Talhão coordenadas (map polygon) ──
+  async function handleSaveCoords(talhaoId: string, geoJson: string) {
+    const db = getDB()
+    const now = new Date().toISOString()
+    const talhao = talhoes.find(t => t.id === talhaoId)
+    if (!talhao) return
+    const updated = { ...talhao, coordenadas: geoJson, updatedAt: now, _syncStatus: 'pending' as const }
+    await db.talhoes.put(updated)
+    await enqueueSync('talhao', 'upsert', updated as unknown as Record<string, unknown>)
+    processSyncQueue()
+    setTalhoes(prev => prev.map(t => t.id === talhaoId ? { ...t, coordenadas: geoJson } : t))
+  }
+
   // ── PDF ──
   async function exportarPDF() {
     if (!fazenda) return
@@ -242,10 +261,12 @@ export default function FazendaDetailPage() {
   )
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'talhoes', label: 'Talhões',  icon: <Leaf size={14} />,    count: talhoes.length },
-    { key: 'produtos', label: 'Produtos', icon: <Package size={14} />, count: produtos.length },
-    { key: 'clima',   label: 'Clima',    icon: <Cloud size={14} /> },
-    { key: 'equipe',  label: 'Equipe',   icon: <Users size={14} /> },
+    { key: 'talhoes',    label: 'Talhões',    icon: <Leaf size={14} />,        count: talhoes.length },
+    { key: 'mapa',       label: 'Mapa',       icon: <Map size={14} /> },
+    { key: 'produtos',   label: 'Produtos',   icon: <Package size={14} />,     count: produtos.length },
+    { key: 'financeiro', label: 'Financeiro', icon: <DollarSign size={14} /> },
+    { key: 'clima',      label: 'Clima',      icon: <Cloud size={14} /> },
+    { key: 'equipe',     label: 'Equipe',     icon: <Users size={14} /> },
   ]
 
   return (
@@ -378,12 +399,173 @@ export default function FazendaDetailPage() {
         </div>
       )}
 
+      {/* ── MAPA ── */}
+      {tab === 'mapa' && (
+        <div className="animate-enter animate-enter-3">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="section-label">Mapa dos talhões</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>
+                Visualize e demarcque seus talhões no mapa. Clique em &ldquo;Demarcar talhão&rdquo; para desenhar um polígono.
+              </p>
+            </div>
+            {talhoes.filter(t => t.coordenadas).length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium"
+                style={{ background: 'hsl(160 84% 22% / 0.1)', color: 'hsl(160 84% 22%)' }}>
+                <MapPinIcon size={11} />
+                {talhoes.filter(t => t.coordenadas).length}/{talhoes.length} demarcados
+              </div>
+            )}
+          </div>
+          <TalhoesMap
+            features={talhoes.map(t => ({
+              talhao: t,
+              status: (() => {
+                const apps = aplicacoes.filter(a => a.talhao_id === t.id)
+                if (apps.some(a => a.status === 'atrasado')) return 'atrasado'
+                if (apps.some(a => a.status === 'hoje')) return 'hoje'
+                if (apps.some(a => a.status === 'proximo')) return 'proximo'
+                if (apps.some(a => a.status === 'dentro_do_prazo')) return 'dentro_do_prazo'
+                return 'sem_aplicacao'
+              })(),
+              aplicacoes: aplicacoes.filter(a => a.talhao_id === t.id),
+            }))}
+            onSaveCoords={handleSaveCoords}
+            height="560px"
+          />
+          {talhoes.length === 0 && (
+            <div className="mt-4 card p-6 text-center">
+              <Map className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--fg-subtle)', opacity: 0.4 }} />
+              <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Cadastre talhões na aba &ldquo;Talhões&rdquo; para começar a demarcar no mapa.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FINANCEIRO ── */}
+      {tab === 'financeiro' && (() => {
+        // Compute cost per application = dose × preco_unitario × area_aplicada
+        const appsComCusto = aplicacoes.map(ap => {
+          const produto = produtos.find(p => p.id === ap.produto_id)
+          const talhao  = talhoes.find(t => t.id === ap.talhao_id)
+          const custo = (ap.dose && produto?.preco_unitario && ap.area_aplicada)
+            ? ap.dose * produto.preco_unitario * ap.area_aplicada
+            : null
+          return { ap, produto, talhao, custo }
+        })
+        const totalGasto    = appsComCusto.reduce((s, i) => s + (i.custo ?? 0), 0)
+        const comCusto      = appsComCusto.filter(i => i.custo !== null)
+        const semPreco      = produtos.filter(p => !p.preco_unitario).length
+        // cost breakdown by product
+        const custoPorProd  = produtos.map(p => {
+          const soma = appsComCusto.filter(i => i.produto?.id === p.id).reduce((s, i) => s + (i.custo ?? 0), 0)
+          return { produto: p, soma }
+        }).filter(x => x.soma > 0).sort((a, b) => b.soma - a.soma)
+
+        const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+        return (
+          <div className="animate-enter animate-enter-3 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="section-label">Módulo financeiro</p>
+              {semPreco > 0 && (
+                <span className="text-xs px-2.5 py-1 rounded-full" style={{ background: 'hsl(38 90% 96%)', color: 'hsl(38 80% 40%)' }}>
+                  ⚠ {semPreco} produto{semPreco > 1 ? 's' : ''} sem preço cadastrado
+                </span>
+              )}
+            </div>
+
+            {/* KPI cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                { label: 'Custo total', value: fmt(totalGasto), icon: <Receipt size={15} />, color: 'hsl(160 84% 22%)' },
+                { label: 'Aplicações com custo', value: `${comCusto.length}/${aplicacoes.length}`, icon: <FlaskConical size={15} />, color: 'hsl(221 83% 53%)' },
+                { label: 'Custo médio/aplicação', value: comCusto.length > 0 ? fmt(totalGasto / comCusto.length) : '—', icon: <TrendingUp size={15} />, color: 'hsl(280 60% 55%)' },
+              ].map(k => (
+                <div key={k.label} className="card p-4">
+                  <div className="flex items-center gap-2 mb-1" style={{ color: k.color }}>
+                    {k.icon}
+                    <span className="text-[11px] font-semibold uppercase tracking-wide">{k.label}</span>
+                  </div>
+                  <div className="text-xl font-bold font-display" style={{ color: 'var(--fg)' }}>{k.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Cost by product */}
+            {custoPorProd.length > 0 && (
+              <div className="card overflow-hidden">
+                <div className="px-4 pt-4 pb-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--borda)' }}>
+                  <DollarSign size={14} style={{ color: 'hsl(160 84% 22%)' }} />
+                  <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Gasto por produto</span>
+                </div>
+                <div className="p-4 space-y-3">
+                  {custoPorProd.map(({ produto: p, soma }) => {
+                    const pct = totalGasto > 0 ? (soma / totalGasto) * 100 : 0
+                    return (
+                      <div key={p.id}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span style={{ color: 'var(--fg)' }}>{p.nome}</span>
+                          <span className="font-semibold" style={{ color: 'var(--fg)' }}>{fmt(soma)}</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-dark)' }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'hsl(160 84% 22%)' }} />
+                        </div>
+                        <div className="text-[10px] mt-0.5" style={{ color: 'var(--fg-subtle)' }}>{pct.toFixed(1)}% do total</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Detailed table */}
+            {comCusto.length > 0 ? (
+              <div className="card overflow-hidden">
+                <div className="px-4 pt-4 pb-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--borda)' }}>
+                  <Receipt size={14} style={{ color: 'hsl(160 84% 22%)' }} />
+                  <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Custo por aplicação</span>
+                </div>
+                <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
+                  {[...comCusto].sort((a, b) => b.ap.data_aplicacao.localeCompare(a.ap.data_aplicacao)).map(({ ap, produto: p, talhao: t, custo }) => {
+                    const [y, mo, d] = ap.data_aplicacao.split('-').map(Number)
+                    const dateStr = new Date(y, mo - 1, d).toLocaleDateString('pt-BR')
+                    return (
+                      <div key={ap.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-medium" style={{ color: 'var(--fg)' }}>{p?.nome}</div>
+                          <div className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                            {t?.nome} · {dateStr}
+                            {ap.dose && p && <span> · {ap.dose} {ap.unidade_dose || p.unidade_quantidade || 'un'}/ha × {ap.area_aplicada} ha</span>}
+                          </div>
+                        </div>
+                        <div className="text-sm font-bold flex-shrink-0" style={{ color: 'hsl(160 84% 22%)' }}>
+                          {fmt(custo!)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="card p-10 text-center">
+                <DollarSign className="w-9 h-9 mx-auto mb-2" style={{ color: 'var(--fg-subtle)', opacity: 0.35 }} />
+                <p className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>Nenhum custo calculado ainda</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--fg-subtle)' }}>
+                  Cadastre o <strong>preço unitário</strong> dos produtos e registre aplicações com dose e área para ver os custos aqui.
+                </p>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── PRODUTOS ── */}
       {tab === 'produtos' && (
         <div className="animate-enter animate-enter-3">
           <div className="flex items-center justify-between mb-4">
             <p className="section-label">Produtos da fazenda</p>
-            <Button size="sm" onClick={() => { setEditProduto(null); setProdutoForm({ nome: '', tipo: 'herbicida', prazo_medio_aplicacao: '', fabricante: '', quantidade_disponivel: '', unidade_quantidade: 'L' }); setProdutoModal(true) }} className="gap-1">
+            <Button size="sm" onClick={() => { setEditProduto(null); setProdutoForm({ nome: '', tipo: 'herbicida', prazo_medio_aplicacao: '', fabricante: '', quantidade_disponivel: '', unidade_quantidade: 'L', preco_unitario: '' }); setProdutoModal(true) }} className="gap-1">
               <Plus className="w-4 h-4" />Novo Produto
             </Button>
           </div>
@@ -438,7 +620,7 @@ export default function FazendaDetailPage() {
                             <History size={14} />
                           </button>
                         )}
-                        <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao.toString(), fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L' }); setProdutoModal(true) }}
+                        <button onClick={() => { setEditProduto(p); setProdutoForm({ nome: p.nome, tipo: p.tipo, prazo_medio_aplicacao: p.prazo_medio_aplicacao.toString(), fabricante: p.fabricante || '', quantidade_disponivel: p.quantidade_disponivel?.toString() || '', unidade_quantidade: p.unidade_quantidade || 'L', preco_unitario: p.preco_unitario?.toString() || '' }); setProdutoModal(true) }}
                           className="p-1.5 rounded-lg transition" style={{ color: 'var(--fg-subtle)' }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -622,6 +804,7 @@ export default function FazendaDetailPage() {
               { value: 'un', label: 'Unidades (un)' },
             ]} />
           </div>
+          <Input label="Preço unitário (R$/un) — para módulo financeiro" type="number" value={produtoForm.preco_unitario} onChange={e => setProdutoForm(f => ({ ...f, preco_unitario: e.target.value }))} placeholder="Ex: 45.90" />
         </div>
       </Modal>
     </div>

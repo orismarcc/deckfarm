@@ -1,26 +1,45 @@
 {
-  "name": "DeckFarm - Gestão Agrícola",
+  "name": "DeckFarm — Gestão Agrícola",
   "short_name": "DeckFarm",
-  "description": "Sistema inteligente de gerenciamento de lavouras agrícolas",
+  "description": "Controle inteligente de fazendas, talhões e aplicações agrícolas",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#16a34a",
+  "theme_color": "#1a6636",
   "orientation": "portrait-primary",
+  "categories": ["productivity", "agriculture"],
+  "lang": "pt-BR",
   "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "Nova Aplicação",
+      "short_name": "Aplicar",
+      "url": "/aplicacoes",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
+    {
+      "name": "Dashboard",
+      "short_name": "Início",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Cronograma",
+      "short_name": "Agenda",
+      "url": "/cronograma",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "form_factor": "narrow",
+      "label": "Dashboard DeckFarm"
     }
-  ],
-  "categories": ["agriculture", "productivity", "utilities"],
-  "lang": "pt-BR"
+  ]
 }

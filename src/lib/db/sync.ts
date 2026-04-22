@@ -63,24 +63,31 @@ export async function pullFromServer(token: string): Promise<void> {
   const cleanAplicacoes  = aplicacoes.map(stripJoins) as unknown as Aplicacao[]
   const cleanEtapas      = etapas.map(stripJoins) as unknown as SemeaduraEtapa[]
 
-  if (cleanFazendas.length)   await db.fazendas.bulkPut(cleanFazendas)
-  if (cleanTalhoes.length)    await db.talhoes.bulkPut(cleanTalhoes)
-  if (cleanProdutos.length)   await db.produtos.bulkPut(cleanProdutos)
-  if (cleanAplicacoes.length) await db.aplicacoes.bulkPut(cleanAplicacoes)
-  if (cleanEtapas.length)     await db.semeaduraEtapas.bulkPut(cleanEtapas)
+  // Filter out soft-deleted aplicações coming from server
+  const activeAplicacoes = cleanAplicacoes.filter(a => !(a as unknown as Record<string,unknown>).deleted_at)
+
+  if (cleanFazendas.length)    await db.fazendas.bulkPut(cleanFazendas)
+  if (cleanTalhoes.length)     await db.talhoes.bulkPut(cleanTalhoes)
+  if (cleanProdutos.length)    await db.produtos.bulkPut(cleanProdutos)
+  if (activeAplicacoes.length) await db.aplicacoes.bulkPut(activeAplicacoes)
+  // Also hard-remove any locally-cached soft-deleted records
+  const deletedIds = cleanAplicacoes
+    .filter(a => (a as unknown as Record<string,unknown>).deleted_at)
+    .map(a => a.id)
+  if (deletedIds.length) await db.aplicacoes.bulkDelete(deletedIds)
+  if (cleanEtapas.length)      await db.semeaduraEtapas.bulkPut(cleanEtapas)
 
   // ── Update Zustand directly so all subscribed pages re-render immediately ──
-  // This bypasses the layout → read Dexie → set Zustand chain and eliminates
-  // the race condition where a page's loadData() runs before the layout finishes.
   const store = useAppStore.getState()
 
-  // Merge with existing store data: server wins for matching IDs (server is truth),
-  // keep any local-only records not yet synced to the server.
-  if (cleanFazendas.length || cleanTalhoes.length || cleanProdutos.length || cleanAplicacoes.length) {
-    const mergedFazendas = mergeById(store.fazendas, cleanFazendas)
-    const mergedTalhoes  = mergeById(store.talhoes,  cleanTalhoes)
-    const mergedProdutos = mergeById(store.produtos,  cleanProdutos)
-    const mergedAplicacoes = mergeById(store.aplicacoes, cleanAplicacoes)
+  // Conflict resolution: updatedAt-wins — more recent record is kept.
+  // Prevents offline edits from being silently discarded when server lags behind.
+  if (cleanFazendas.length || cleanTalhoes.length || cleanProdutos.length || activeAplicacoes.length) {
+    const mergedFazendas   = mergeByUpdatedAt(store.fazendas,   cleanFazendas)
+    const mergedTalhoes    = mergeByUpdatedAt(store.talhoes,    cleanTalhoes)
+    const mergedProdutos   = mergeByUpdatedAt(store.produtos,   cleanProdutos)
+    const mergedAplicacoes = mergeByUpdatedAt(store.aplicacoes, activeAplicacoes)
+      .filter(a => !(a as unknown as Record<string,unknown>).deleted_at)
 
     store.setFazendas(mergedFazendas)
     store.setTalhoes(mergedTalhoes)
@@ -92,11 +99,20 @@ export async function pullFromServer(token: string): Promise<void> {
   store.setLastServerSyncAt(Date.now())
 }
 
-/** Merge two arrays by id: serverItems overwrite localItems for same id, extras kept */
-function mergeById<T extends { id: string }>(local: T[], server: T[]): T[] {
+/**
+ * Merge two arrays by id using updatedAt conflict resolution.
+ * The record with the most recent updatedAt wins; local-only records are kept.
+ */
+function mergeByUpdatedAt<T extends { id: string; updatedAt?: string }>(local: T[], server: T[]): T[] {
   const map = new Map<string, T>()
-  for (const item of local)  map.set(item.id, item)
-  for (const item of server) map.set(item.id, item)   // server wins
+  for (const item of local) map.set(item.id, item)
+  for (const item of server) {
+    const existing = map.get(item.id)
+    // Server wins if no local record, or if server record is newer
+    if (!existing || (item.updatedAt && existing.updatedAt && item.updatedAt > existing.updatedAt)) {
+      map.set(item.id, item)
+    }
+  }
   return Array.from(map.values())
 }
 

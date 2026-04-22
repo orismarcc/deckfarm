@@ -32,12 +32,12 @@ const ALLOWED_FIELDS: Record<string, Set<string>> = {
     'id', 'nome', 'area', 'cultura', 'fazenda_id',
     'latitude', 'longitude', 'descricao', 'foto',
     'data_plantio', 'data_colheita_prevista', 'data_colheita_real',
-    'status_semeadura', 'area_semeada', 'createdAt', 'updatedAt',
+    'status_semeadura', 'area_semeada', 'coordenadas', 'createdAt', 'updatedAt',
   ]),
   produtos: new Set([
     'id', 'nome', 'tipo', 'prazo_medio_aplicacao', 'fabricante',
     'registro_mapa', 'unidade', 'quantidade_disponivel', 'unidade_quantidade',
-    'fazenda_id', 'createdAt', 'updatedAt',
+    'preco_unitario', 'fazenda_id', 'createdAt', 'updatedAt',
   ]),
   aplicacoes: new Set([
     'id', 'talhao_id', 'produto_id', 'safra_id', 'tipo',

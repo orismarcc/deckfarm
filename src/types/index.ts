@@ -187,6 +187,7 @@ export interface Produto {
   unidade?: string
   quantidade_disponivel?: number   // estoque atual
   unidade_quantidade?: string      // ex: L, kg, g, ml, sc
+  preco_unitario?: number          // R$ por unidade (para módulo financeiro)
   fazenda_id: string
   createdAt: string
   updatedAt: string
@@ -213,6 +214,7 @@ export interface Aplicacao {
   usuario_id: string
   createdAt: string
   updatedAt: string
+  deleted_at?: string | null  // soft-delete: null = active, string = deleted ISO timestamp
   _syncStatus?: 'synced' | 'pending' | 'conflict'
   talhao?: Talhao
   produto?: Produto

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { usePushNotifications } from '@/hooks/use-push-notifications'
 
 /* ── small helpers ─────────────────────────────────────────────── */
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
@@ -121,6 +122,7 @@ export default function PerfilPage() {
   const router = useRouter()
   const { user, token, updateUser, logout } = useAuthStore()
   const { theme, setTheme } = useThemeStore()
+  const push = usePushNotifications()
 
   // Apply saved theme on mount
   useEffect(() => { applyTheme(theme) }, [theme])
@@ -139,6 +141,11 @@ export default function PerfilPage() {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       setAvatarFeed({ type: 'error', msg: 'Selecione um arquivo de imagem (JPG, PNG, etc).' })
+      return
+    }
+    const MAX_FILE_MB = 5
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      setAvatarFeed({ type: 'error', msg: `Imagem muito grande. Máximo permitido: ${MAX_FILE_MB} MB.` })
       return
     }
     setAvatarLoad(true); setAvatarFeed(null)
@@ -498,6 +505,47 @@ export default function PerfilPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Push Notifications toggle */}
+              {push.supported && (
+                <div style={{ borderTop: '1px solid var(--borda)', paddingTop: '1rem' }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm" style={{ color: 'var(--fg)' }}>Notificações Push</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--fg-subtle)' }}>
+                        {push.subscribed
+                          ? 'Receba alertas mesmo com o app fechado'
+                          : push.permission === 'denied'
+                          ? 'Permissão negada — habilite nas configurações do navegador'
+                          : 'Receba alertas mesmo com o app fechado'
+                        }
+                      </p>
+                      {push.error && <p className="text-xs mt-0.5" style={{ color: 'hsl(4 72% 50%)' }}>{push.error}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={push.subscribed ? push.unsubscribe : push.subscribe}
+                      disabled={push.loading || push.permission === 'denied'}
+                      className="relative flex-shrink-0"
+                      style={{ background: 'none', border: 'none', cursor: push.permission === 'denied' ? 'not-allowed' : 'pointer', padding: 0, opacity: push.permission === 'denied' ? 0.4 : 1 }}
+                      aria-label="Toggle push notifications"
+                    >
+                      <div
+                        className="w-12 h-6 rounded-full transition-all duration-200"
+                        style={{
+                          background: push.subscribed ? 'hsl(160 84% 22%)' : 'var(--borda)',
+                          boxShadow: push.subscribed ? '0 0 0 2px hsl(160 84% 22% / 0.20)' : 'none',
+                        }}
+                      >
+                        <div
+                          className="absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow transition-all duration-200"
+                          style={{ left: push.subscribed ? 'calc(100% - 21px)' : '3px' }}
+                        />
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </SectionCard>
         </div>

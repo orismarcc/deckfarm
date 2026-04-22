@@ -107,6 +107,25 @@ export class DeckFarmDB extends Dexie {
       semeaduraEtapas: 'id, talhao_id, fazenda_id, usuario_id, etapa, data_semeadura',
       estoqueMovimentacoes: 'id, produto_id, fazenda_id, usuario_id, data',
     })
+    // v7: soft-delete on aplicacoes — sets deleted_at instead of hard-deleting
+    this.version(7).stores({
+      users: 'id, email',
+      fazendas: 'id, usuario_id, nome',
+      talhoes: 'id, fazenda_id, nome, cultura, data_plantio, status_semeadura',
+      produtos: 'id, fazenda_id, nome, tipo',
+      aplicacoes: 'id, talhao_id, produto_id, usuario_id, data_aplicacao, proxima_aplicacao, status, safra_id, tipo, deleted_at',
+      notificacoes: 'id, usuario_id, lida, data_referencia, tipo',
+      syncQueue: 'id, entity, action, timestamp',
+      safras: 'id, fazenda_id, status, ano_inicio',
+      fazendaMembros: 'id, fazenda_id, usuario_id, status',
+      pluviometros: 'id, fazenda_id, talhao_id',
+      registrosChuva: 'id, pluviometro_id, fazenda_id, data',
+      anotacoes: 'id, talhao_id, fazenda_id, usuario_id, data',
+      recomendacoes: 'id, fazenda_id, usuario_id, data_inicio, data_fim',
+      recomendacaoAplicacoes: 'id, recomendacao_id, talhao_id, produto_id, data_aplicacao',
+      semeaduraEtapas: 'id, talhao_id, fazenda_id, usuario_id, etapa, data_semeadura',
+      estoqueMovimentacoes: 'id, produto_id, fazenda_id, usuario_id, data',
+    })
   }
 }
 

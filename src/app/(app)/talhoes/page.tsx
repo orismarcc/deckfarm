@@ -28,7 +28,7 @@ export default function TalhoesPage() {
       const tals = await db.talhoes.where('fazenda_id').anyOf(fazIds.length ? fazIds : ['']).toArray()
       const enriched = await Promise.all(tals.map(async t => {
         const fazenda = fazs.find(f => f.id === t.fazenda_id)
-        const apps = await db.aplicacoes.where('talhao_id').equals(t.id).toArray()
+        const apps = await db.aplicacoes.where('talhao_id').equals(t.id).filter(a => !a.deleted_at).toArray()
         const atrasadas = apps.filter(a => a.status === 'atrasado').length
         return { ...t, fazenda, atrasadas }
       }))

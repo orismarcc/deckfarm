@@ -98,7 +98,7 @@ export default function CronogramaPage() {
       const fazIds = fazs.map(f => f.id)
       const tals = await db.talhoes.where('fazenda_id').anyOf(fazIds).toArray()
       setTalhoes(tals)
-      const apps = await db.aplicacoes.where('usuario_id').equals(user.id).toArray()
+      const apps = await db.aplicacoes.where('usuario_id').equals(user.id).filter(a => !a.deleted_at).toArray()
       const enriched = await Promise.all(apps.map(async a => {
         const [talhao, produto] = await Promise.all([
           db.talhoes.get(a.talhao_id),

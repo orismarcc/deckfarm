@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from '@sentry/nextjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const supabaseHost = SUPABASE_URL ? new URL(SUPABASE_URL).host : '*.supabase.co'
@@ -59,4 +60,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: true,           // suppress build output unless there's an error
+  widenClientFileUpload: true,
+  disableLogger: true,
+  automaticVercelMonitors: true,
+});

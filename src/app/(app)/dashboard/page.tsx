@@ -52,7 +52,7 @@ export default function DashboardPage() {
       const [fazs, tals, apps, nots] = await Promise.all([
         db.fazendas.where('usuario_id').equals(user.id).toArray(),
         db.talhoes.toArray(),
-        db.aplicacoes.where('usuario_id').equals(user.id).toArray(),
+        db.aplicacoes.where('usuario_id').equals(user.id).filter(a => !a.deleted_at).toArray(),
         db.notificacoes.where('usuario_id').equals(user.id).toArray(),
       ])
       setFazendas(fazs); setTalhoes(tals); setAplicacoes(apps); setNotificacoes(nots)

@@ -47,7 +47,7 @@ export default function FazendasPage() {
     const [fazs, tals, apps] = await Promise.all([
       db.fazendas.where('usuario_id').equals(user.id).toArray(),
       db.talhoes.toArray(),
-      db.aplicacoes.where('usuario_id').equals(user.id).toArray(),
+      db.aplicacoes.where('usuario_id').equals(user.id).filter(a => !a.deleted_at).toArray(),
     ])
     setFazendas(fazs); setTalhoes(tals); setAplicacoes(apps)
   }, [user, setFazendas, setTalhoes, setAplicacoes])
