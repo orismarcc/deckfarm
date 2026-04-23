@@ -42,7 +42,8 @@ export async function criarAplicacao(
     tipo: data.tipo,
     data_aplicacao: data.data_aplicacao,
     proxima_aplicacao: proxima_str,
-    status: calcularStatus(proxima_str ?? data.data_aplicacao),
+    // Status always based on data_aplicacao — proxima_aplicacao is only a suggestion for the NEXT app
+    status: calcularStatus(data.tipo === 'realizada' ? undefined : data.data_aplicacao),
     dose: data.dose,
     unidade_dose: data.unidade_dose,
     area_aplicada: data.area_aplicada,
@@ -68,8 +69,15 @@ export async function criarAplicacao(
 export async function atualizarStatuses(): Promise<void> {
   const db = getDB()
   const all = await db.aplicacoes.toArray()
+  // planejadas: status based on data_aplicacao (the actual scheduled date)
+  // realizadas: always dentro_do_prazo (done — no longer relevant for alerts)
   const updates = all
-    .map(a => ({ ...a, status: calcularStatus(a.proxima_aplicacao ?? a.data_aplicacao) }))
+    .map(a => ({
+      ...a,
+      status: a.tipo === 'realizada'
+        ? ('dentro_do_prazo' as AplicacaoStatus)
+        : calcularStatus(a.data_aplicacao),
+    }))
     .filter((a, i) => a.status !== all[i].status)
 
   for (const a of updates) {

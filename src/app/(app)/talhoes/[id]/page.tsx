@@ -193,7 +193,7 @@ export default function TalhaoPage() {
     if (!t) return
     setTalhao(t)
     // Refresh statuses so 'hoje'/'atrasado' are always accurate regardless of when app was saved
-    await atualizarStatuses()
+    try { await atualizarStatuses() } catch (e) { console.warn('[loadData] atualizarStatuses error', e) }
     const [faz, prods, apps] = await Promise.all([
       db.fazendas.get(t.fazenda_id),
       db.produtos.where('fazenda_id').equals(t.fazenda_id).toArray(),
@@ -353,7 +353,7 @@ export default function TalhaoPage() {
     const src = editing || planejada
     // Default tipo: 'realizada' when confirming a planned app; 'planejada' for new manual
     const tipoDefault = editing
-      ? (editing.tipo as 'planejada' | 'realizada')
+      ? (editing.tipo === 'realizada' ? 'realizada' : 'planejada')
       : planejada ? 'realizada' : 'planejada'
     setForm({
       produto_id: src?.produto_id || '',
@@ -366,7 +366,8 @@ export default function TalhaoPage() {
       temperatura: src?.temperatura?.toString() || '',
       tipo: tipoDefault,
     })
-    setFotos(editing?.fotos || [])
+    // Guard: fotos must always be an array (Dexie may return undefined for old records)
+    setFotos(Array.isArray(editing?.fotos) ? editing!.fotos : [])
     setModalOpen(true)
   }
 
@@ -423,7 +424,10 @@ export default function TalhaoPage() {
       // If editing an existing application (realizada or planejada)
       if (editingAplicacao) {
         const now = new Date().toISOString()
-        const novoStatus = calcularStatusLocal(form.data_aplicacao)
+        // Status: planejadas use data_aplicacao; realizadas are always done
+        const novoStatus = form.tipo === 'realizada'
+          ? ('dentro_do_prazo' as const)
+          : calcularStatusLocal(form.data_aplicacao)
         const updated: Aplicacao = {
           ...editingAplicacao,
           tipo: form.tipo,
