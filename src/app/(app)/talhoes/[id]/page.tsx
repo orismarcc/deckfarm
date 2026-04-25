@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
+import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
 import { criarAplicacao, atualizarStatuses } from '@/lib/db/aplicacoes'
 import { agendarAplicacoesPorPlantio, criarOuAtualizarSafra, CICLO_CULTURA } from '@/lib/db/agronomo'
@@ -241,6 +242,10 @@ export default function TalhaoPage() {
   }, [id])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Re-load when server sync completes — restores data that pullFromServer wrote to Dexie
+  const lastServerSyncAt = useAppStore(s => s.lastServerSyncAt)
+  useEffect(() => { if (lastServerSyncAt > 0) loadData() }, [lastServerSyncAt, loadData])
 
   // ── Plantio ──────────────────────────────────────────────────────────────
   function openPlantioModal() {
@@ -607,13 +612,18 @@ export default function TalhaoPage() {
   }
 
   // ── Derived semeadura data ────────────────────────────────────────────────
-  const totalSemeado   = etapas.reduce((acc, e) => acc + e.area_semeada, 0)
-  const areaRestante   = talhao ? Math.max(0, talhao.area - totalSemeado) : 0
+  // Prefer sum of loaded etapas; fall back to talhão record when etapas are
+  // missing locally (e.g. after browser cache clear, before server sync restores them)
+  const totalSemeadoEtapas = etapas.reduce((acc, e) => acc + e.area_semeada, 0)
+  const totalSemeado   = etapas.length > 0 ? totalSemeadoEtapas : (talhao?.area_semeada ?? 0)
+  const etapasMissing  = etapas.length === 0 && totalSemeado > 0   // etapas perdidas localmente
+  const areaRestante   = talhao ? Math.max(0, talhao.area - totalSemeadoEtapas) : 0
   const semeaduraPctEt = talhao && talhao.area > 0 ? Math.min(100, (totalSemeado / talhao.area) * 100) : 0
   const statusSemeaduraComputado: StatusSemeadura =
     totalSemeado <= 0 ? 'nao_iniciada' :
     talhao && totalSemeado >= talhao.area ? 'finalizada' : 'em_andamento'
-  const podeSemearMais = talhao?.data_plantio && statusSemeaduraComputado !== 'finalizada'
+  // Allow re-registration when etapas are missing locally (etapasMissing), even if cached status = finalizada
+  const podeSemearMais = talhao?.data_plantio && (statusSemeaduraComputado !== 'finalizada' || etapasMissing)
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const planejadas = aplicacoes.filter(a => a.tipo === 'planejada')
@@ -833,18 +843,27 @@ export default function TalhaoPage() {
           {/* Stage list */}
           {etapas.length === 0 ? (
             <div className="rounded-xl py-5 text-center" style={{ background: 'var(--bg)' }}>
-              <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-                Nenhuma etapa registrada ainda.
-              </p>
-              {podeSemearMais && (
-                <button
-                  onClick={() => { setEtapaError(''); setEtapaForm({ area_semeada: '', data_semeadura: TODAY, observacoes: '' }); setEtapaModal(true) }}
-                  className="mt-2 text-xs font-semibold"
-                  style={{ color: 'hsl(210 100% 40%)' }}
-                >
-                  + Registrar 1ª etapa
-                </button>
+              {etapasMissing ? (
+                <>
+                  <p className="text-sm font-medium" style={{ color: 'hsl(32 95% 38%)' }}>
+                    Etapas não encontradas localmente
+                  </p>
+                  <p className="text-xs mt-1 mb-3" style={{ color: 'var(--fg-muted)' }}>
+                    O registro de {totalSemeado.toFixed(1)} ha semeados está salvo, mas os detalhes das etapas foram perdidos do cache local (possível limpeza do browser ou troca de dispositivo). Re-registre as etapas abaixo para restaurar o histórico.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+                  Nenhuma etapa registrada ainda.
+                </p>
               )}
+              <button
+                onClick={() => { setEtapaError(''); setEtapaForm({ area_semeada: '', data_semeadura: TODAY, observacoes: '' }); setEtapaModal(true) }}
+                className="mt-1 text-xs font-semibold"
+                style={{ color: 'hsl(210 100% 40%)' }}
+              >
+                + Registrar {etapasMissing ? 'nova' : '1ª'} etapa
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
