@@ -442,6 +442,9 @@ export default function FazendaDetailPage() {
             }))}
             onSaveCoords={handleSaveCoords}
             height="560px"
+            fazendaLatitude={fazenda.latitude}
+            fazendaLongitude={fazenda.longitude}
+            fazendaLocalizacao={fazenda.localizacao}
           />
           {talhoes.length === 0 && (
             <div className="mt-4 card p-6 text-center">

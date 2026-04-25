@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Locate, MapPin } from 'lucide-react'
 
-interface TalhaoMapProps {
+interface FazendaLocationPickerProps {
   latitude?: number
   longitude?: number
-  coordenadas?: string
-  onLocationSelect?: (lat: number, lng: number) => void
-  readOnly?: boolean
+  /** Hint for initial map center when no coords yet (e.g. "Sorriso - MT") */
+  localizacaoHint?: string
+  onLocationSelect: (lat: number, lng: number) => void
   height?: string
 }
 
@@ -22,14 +22,25 @@ const SAT_STYLE = {
   layers: [{ id: 'esri-tiles', type: 'raster' as const, source: 'esri' }],
 }
 
-export function TalhaoMap({
+async function geocodeHint(hint: string): Promise<[number, number] | null> {
+  try {
+    const q = encodeURIComponent(hint + ', Brasil')
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`, {
+      headers: { 'Accept-Language': 'pt-BR' }
+    })
+    const data = await res.json()
+    if (data?.[0]) return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+  } catch { /* ok */ }
+  return null
+}
+
+export function FazendaLocationPicker({
   latitude,
   longitude,
-  coordenadas,
+  localizacaoHint,
   onLocationSelect,
-  readOnly = false,
-  height = '260px',
-}: TalhaoMapProps) {
+  height = '280px',
+}: FazendaLocationPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef    = useRef<any>(null)
@@ -38,19 +49,31 @@ export function TalhaoMap({
   const [satellite,  setSatellite]  = useState(false)
   const [ready,      setReady]      = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [coords,     setCoords]     = useState<{ lat: number; lng: number } | null>(
+    latitude && longitude ? { lat: latitude, lng: longitude } : null
+  )
 
   // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     let cancelled = false
 
-    import('maplibre-gl').then(({ default: maplibregl }) => {
+    async function init() {
+      const { default: maplibregl } = await import('maplibre-gl')
       if (cancelled || !containerRef.current || mapRef.current) return
-      try {
-        const centerLng = longitude ?? -52.0
-        const centerLat = latitude  ?? -12.5
-        const zoom      = latitude  ? 14 : 5
 
+      let centerLng = -52.0, centerLat = -12.5, zoom = 5
+
+      if (latitude && longitude) {
+        centerLng = longitude; centerLat = latitude; zoom = 13
+      } else if (localizacaoHint) {
+        const gc = await geocodeHint(localizacaoHint)
+        if (gc && !cancelled) { centerLng = gc[0]; centerLat = gc[1]; zoom = 12 }
+      }
+
+      if (cancelled || !containerRef.current) return
+
+      try {
         const map = new maplibregl.Map({
           container: containerRef.current!,
           style: OSM_STYLE,
@@ -64,55 +87,45 @@ export function TalhaoMap({
         map.on('load', () => {
           if (cancelled) return
 
-          if (coordenadas) {
-            try {
-              const geo = JSON.parse(coordenadas)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              map.addSource('polygon', { type: 'geojson', data: geo as any })
-              map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-              map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
-            } catch { /* invalid GeoJSON */ }
-          }
-
           if (latitude && longitude) {
-            markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: !readOnly })
+            markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: true })
               .setLngLat([longitude, latitude])
               .addTo(map)
-
-            if (!readOnly && onLocationSelect) {
-              markerRef.current.on('dragend', () => {
-                const lngLat = markerRef.current.getLngLat()
-                onLocationSelect(lngLat.lat, lngLat.lng)
-              })
-            }
-          }
-
-          if (!readOnly && onLocationSelect) {
-            map.getCanvas().style.cursor = 'crosshair'
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            map.on('click', (e: any) => {
-              const { lng, lat } = e.lngLat
-              if (markerRef.current) markerRef.current.remove()
-              markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: true })
-                .setLngLat([lng, lat])
-                .addTo(map)
-              markerRef.current.on('dragend', () => {
-                const lngLat = markerRef.current.getLngLat()
-                onLocationSelect(lngLat.lat, lngLat.lng)
-              })
-              onLocationSelect(lat, lng)
+            markerRef.current.on('dragend', () => {
+              const lngLat = markerRef.current.getLngLat()
+              setCoords({ lat: lngLat.lat, lng: lngLat.lng })
+              onLocationSelect(lngLat.lat, lngLat.lng)
             })
           }
+
+          map.getCanvas().style.cursor = 'crosshair'
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          map.on('click', (e: any) => {
+            const { lng, lat } = e.lngLat
+            if (markerRef.current) markerRef.current.remove()
+            markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: true })
+              .setLngLat([lng, lat])
+              .addTo(map)
+            markerRef.current.on('dragend', () => {
+              const lngLat = markerRef.current.getLngLat()
+              setCoords({ lat: lngLat.lat, lng: lngLat.lng })
+              onLocationSelect(lngLat.lat, lngLat.lng)
+            })
+            setCoords({ lat, lng })
+            onLocationSelect(lat, lng)
+          })
 
           mapRef.current = map
           if (!cancelled) setReady(true)
         })
 
-        map.on('error', (e: { error: Error }) => console.warn('[TalhaoMap]', e.error))
+        map.on('error', (e: { error: Error }) => console.warn('[FazendaLocationPicker]', e.error))
       } catch (err) {
-        console.error('[TalhaoMap] init:', err)
+        console.error('[FazendaLocationPicker] init:', err)
       }
-    }).catch(err => console.error('[TalhaoMap] import:', err))
+    }
+
+    init().catch(err => console.error('[FazendaLocationPicker] import:', err))
 
     return () => {
       cancelled = true
@@ -132,27 +145,9 @@ export function TalhaoMap({
     try { map.setStyle(satellite ? SAT_STYLE : OSM_STYLE) } catch { /* ok */ }
   }, [satellite, ready])
 
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    function onStyleData() {
-      try {
-        if (coordenadas && !map.getSource('polygon')) {
-          const geo = JSON.parse(coordenadas)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          map.addSource('polygon', { type: 'geojson', data: geo as any })
-          map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-          map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
-        }
-      } catch { /* ok */ }
-    }
-    map.on('styledata', onStyleData)
-    return () => { try { map.off('styledata', onStyleData) } catch { /* ok */ } }
-  }, [ready, coordenadas])
-
   // ── Geolocation ───────────────────────────────────────────────────────────
   function useMyLocation() {
-    if (!navigator.geolocation || !onLocationSelect) return
+    if (!navigator.geolocation) return
     setGeoLoading(true)
     navigator.geolocation.getCurrentPosition(
       pos => {
@@ -167,10 +162,12 @@ export function TalhaoMap({
               .addTo(map)
             markerRef.current.on('dragend', () => {
               const lngLat = markerRef.current.getLngLat()
+              setCoords({ lat: lngLat.lat, lng: lngLat.lng })
               onLocationSelect(lngLat.lat, lngLat.lng)
             })
           }).catch(() => {/* ok */})
         }
+        setCoords({ lat, lng })
         onLocationSelect(lat, lng)
         setGeoLoading(false)
       },
@@ -195,39 +192,42 @@ export function TalhaoMap({
                 background: satellite ? '#1d4ed8' : 'rgba(255,255,255,0.95)',
                 color: satellite ? '#fff' : '#374151',
                 border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
-                padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                padding: '5px 11px', fontSize: 11, fontWeight: 600,
                 cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
               }}
             >
               🛰 {satellite ? 'Mapa' : 'Satélite'}
             </button>
-            {!readOnly && onLocationSelect && (
-              <button
-                onClick={useMyLocation}
-                disabled={geoLoading}
-                style={{
-                  position: 'absolute', top: 8, right: 8, zIndex: 5,
-                  background: 'rgba(255,255,255,0.95)', color: '#374151',
-                  border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
-                  padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                  cursor: geoLoading ? 'wait' : 'pointer',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}
-                title="Usar minha localização atual"
-              >
-                <Locate size={12} />
-                {geoLoading ? 'Buscando...' : 'Minha localização'}
-              </button>
-            )}
+            <button
+              onClick={useMyLocation}
+              disabled={geoLoading}
+              style={{
+                position: 'absolute', top: 8, right: 8, zIndex: 5,
+                background: 'rgba(255,255,255,0.95)', color: '#374151',
+                border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
+                padding: '5px 11px', fontSize: 11, fontWeight: 600,
+                cursor: geoLoading ? 'wait' : 'pointer',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+              title="Usar localização atual do dispositivo"
+            >
+              <Locate size={12} />
+              {geoLoading ? 'Buscando...' : 'Minha localização'}
+            </button>
           </>
         )}
       </div>
-      {!readOnly && (
-        <p className="flex items-center gap-1 text-xs mt-1.5" style={{ color: 'var(--fg-subtle)' }}>
-          <MapPin size={11} /> Clique no mapa para marcar a localização · arraste o pino para ajustar
+      <div className="flex items-center justify-between mt-1.5">
+        <p className="flex items-center gap-1 text-xs" style={{ color: 'var(--fg-subtle)' }}>
+          <MapPin size={11} /> Clique no mapa · arraste o pino para ajustar
         </p>
-      )}
+        {coords && (
+          <p className="text-[10px] font-mono" style={{ color: 'var(--fg-subtle)' }}>
+            {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

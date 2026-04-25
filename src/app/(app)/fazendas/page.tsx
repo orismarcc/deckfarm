@@ -10,8 +10,14 @@ import { WeatherWidget } from '@/components/weather/weather-widget'
 import { gerarId, culturaIcon } from '@/lib/utils'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
 import type { Fazenda, Talhao, Aplicacao } from '@/types'
-import { Plus, MapPin, Leaf, AlertTriangle, Clock, CheckCircle, Trash2, Edit3, ChevronRight, Search, Cloud, ChevronDown } from 'lucide-react'
+import { Plus, MapPin, Leaf, AlertTriangle, CheckCircle, Trash2, Edit3, ChevronRight, Search, Cloud, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+const FazendaLocationPicker = dynamic(
+  () => import('@/components/map/fazenda-location-picker').then(m => m.FazendaLocationPicker),
+  { ssr: false, loading: () => <div className="rounded-xl animate-pulse" style={{ height: '280px', background: 'var(--bg-dark)' }} /> }
+)
 
 const ESTADOS_BR = [
   { uf: 'AC', nome: 'Acre' }, { uf: 'AL', nome: 'Alagoas' },
@@ -371,13 +377,16 @@ export default function FazendasPage() {
             />
           </div>
           <Input label="Área total (hectares)" type="number" value={form.area_total} onChange={e => setForm(f => ({ ...f, area_total: e.target.value }))} placeholder="Ex: 500" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Latitude (opcional)" type="number" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="Ex: -10.9333" />
-            <Input label="Longitude (opcional)" type="number" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="Ex: -52.3522" />
+          <div>
+            <p className="field-label mb-2">Localização no mapa <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>(opcional — para previsão do tempo precisa)</span></p>
+            <FazendaLocationPicker
+              latitude={form.latitude ? Number(form.latitude) : undefined}
+              longitude={form.longitude ? Number(form.longitude) : undefined}
+              localizacaoHint={[form.cidade, form.estado].filter(Boolean).join(' - ')}
+              onLocationSelect={(lat, lng) => setForm(f => ({ ...f, latitude: lat.toString(), longitude: lng.toString() }))}
+              height="260px"
+            />
           </div>
-          <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-            Latitude/longitude permite previsão do tempo precisa para a propriedade.
-          </p>
         </div>
       </Modal>
     </div>

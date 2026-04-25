@@ -1,30 +1,17 @@
 'use client'
-/**
- * TalhoesMap — Mapa interativo de talhões (DeckFarm)
- *
- * Usa react-map-gl + MapLibre GL JS (sem Leaflet, sem API key, 100% open-source).
- * Funcionalidades:
- *  - Polígonos coloridos por status da aplicação
- *  - Popup rico ao clicar
- *  - Ferramenta de demarcação (clique nos vértices → Concluir → salva GeoJSON)
- *  - Toggle satélite (ESRI) / mapa (OpenStreetMap)
- *  - Polígonos demo para estado vazio (lúdico)
- */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Talhao, Aplicacao } from '@/types'
 import { culturaLabel, culturaIcon } from '@/lib/utils'
 
-// Tipos MapLibre carregados dinamicamente (evita SSR)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyMap = any
 
-// ── Configuração de status ────────────────────────────────────────────────────
 const STATUS_CFG: Record<string, { color: string; label: string }> = {
   atrasado:        { color: '#dc2626', label: 'Atrasado'     },
-  hoje:            { color: '#2563eb', label: 'Hoje'          },
-  proximo:         { color: '#d97706', label: 'Próximo (7d)'  },
-  dentro_do_prazo: { color: '#16a34a', label: 'No prazo'      },
-  sem_aplicacao:   { color: '#6b7280', label: 'Sem aplicação' },
+  hoje:            { color: '#2563eb', label: 'Hoje'         },
+  proximo:         { color: '#d97706', label: 'Próximo (7d)' },
+  dentro_do_prazo: { color: '#16a34a', label: 'No prazo'     },
+  sem_aplicacao:   { color: '#6b7280', label: 'Sem aplicação'},
 }
 
 export interface TalhaoFeature {
@@ -37,9 +24,12 @@ interface TalhoesMapProps {
   features: TalhaoFeature[]
   onSaveCoords?: (talhaoId: string, geoJson: string) => void
   height?: string
+  fazendaLatitude?: number
+  fazendaLongitude?: number
+  fazendaLocalizacao?: string
 }
 
-// Polígonos demo Mato Grosso
+// Demo polygons in Mato Grosso region
 const DEMO_GEO = {
   type: 'FeatureCollection' as const,
   features: [
@@ -58,28 +48,61 @@ const DEMO_GEO = {
 
 function worstStatus(aplicacoes: Aplicacao[]): string {
   if (!aplicacoes?.length) return 'sem_aplicacao'
-  if (aplicacoes.some(a => a.status === 'atrasado'))         return 'atrasado'
-  if (aplicacoes.some(a => a.status === 'hoje'))             return 'hoje'
-  if (aplicacoes.some(a => a.status === 'proximo'))          return 'proximo'
-  if (aplicacoes.some(a => a.status === 'dentro_do_prazo'))  return 'dentro_do_prazo'
+  if (aplicacoes.some(a => a.status === 'atrasado'))        return 'atrasado'
+  if (aplicacoes.some(a => a.status === 'hoje'))            return 'hoje'
+  if (aplicacoes.some(a => a.status === 'proximo'))         return 'proximo'
+  if (aplicacoes.some(a => a.status === 'dentro_do_prazo')) return 'dentro_do_prazo'
   return 'sem_aplicacao'
 }
 
-// Estilo de mapa OSM
 const OSM_STYLE = {
   version: 8 as const,
   sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' } },
   layers: [{ id: 'osm-tiles', type: 'raster' as const, source: 'osm' }],
 }
-
-// Estilo satélite ESRI (sem API key)
 const SAT_STYLE = {
   version: 8 as const,
   sources: { esri: { type: 'raster' as const, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '© Esri' } },
   layers: [{ id: 'esri-tiles', type: 'raster' as const, source: 'esri' }],
 }
 
-export default function TalhoesMap({ features, onSaveCoords, height = '520px' }: TalhoesMapProps) {
+async function geocodeCity(localizacao: string): Promise<[number, number] | null> {
+  try {
+    const q = encodeURIComponent(localizacao + ', Brasil')
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`, {
+      headers: { 'Accept-Language': 'pt-BR' }
+    })
+    const data = await res.json()
+    if (data?.[0]) return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+  } catch { /* ok */ }
+  return null
+}
+
+function addLayers(map: AnyMap, geoData: AnyMap) {
+  if (!map.getSource('fields')) {
+    map.addSource('fields', { type: 'geojson', data: geoData })
+    map.addLayer({ id: 'fields-fill',    type: 'fill',   source: 'fields', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.35 } })
+    map.addLayer({ id: 'fields-outline', type: 'line',   source: 'fields', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
+    map.addLayer({ id: 'fields-labels',  type: 'symbol', source: 'fields',
+      layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-anchor': 'center' },
+      paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2 },
+    })
+  }
+  if (!map.getSource('draw-preview')) {
+    map.addSource('draw-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    map.addLayer({ id: 'draw-fill',    type: 'fill', source: 'draw-preview', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
+    map.addLayer({ id: 'draw-outline', type: 'line', source: 'draw-preview', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-dasharray': [4, 3] } })
+  }
+}
+
+export default function TalhoesMap({
+  features,
+  onSaveCoords,
+  height = '520px',
+  fazendaLatitude,
+  fazendaLongitude,
+  fazendaLocalizacao,
+}: TalhoesMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef          = useRef<AnyMap>(null)
   const [ready,      setReady]      = useState(false)
@@ -92,7 +115,6 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
 
   const showDemos = features.length === 0
 
-  // ── GeoJSON dos talhões reais ─────────────────────────────────────────────
   const fieldsGeo = useMemo(() => ({
     type: 'FeatureCollection' as const,
     features: features
@@ -107,15 +129,15 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
         return {
           type: 'Feature' as const,
           properties: {
-            id:    f.talhao.id,
-            name:  f.talhao.nome,
-            color: cfg.color,
-            label: cfg.label,
-            area:  f.talhao.area,
-            apps:  apps.length,
+            id:      f.talhao.id,
+            name:    f.talhao.nome,
+            color:   cfg.color,
+            label:   cfg.label,
+            area:    f.talhao.area,
+            apps:    apps.length,
             late,
             cultura: `${culturaIcon(f.talhao.cultura)} ${culturaLabel(f.talhao.cultura) ?? f.talhao.cultura}`,
-            href: `/talhoes/${f.talhao.id}`,
+            href:    `/talhoes/${f.talhao.id}`,
           },
           geometry: geo,
         }
@@ -123,32 +145,47 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
       .filter(Boolean),
   }), [features])
 
-  // (draw preview gerenciado via useEffect → map.getSource)
-
-  // ── Inicializar MapLibre ──────────────────────────────────────────────────
+  // ── Initialize MapLibre ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
     let cancelled = false
 
-    import('maplibre-gl').then(({ default: maplibregl }) => {
+    async function init() {
+      const { default: maplibregl } = await import('maplibre-gl')
       if (cancelled || !mapContainerRef.current || mapRef.current) return
-      try {
-        // Centro: média dos polígonos, ou Mato Grosso
-        let centerLng = -52.30, centerLat = -12.54, zoom = 11
-        const allPts: [number, number][] = []
-        features.forEach(f => {
-          if (!f.talhao?.coordenadas) return
-          try {
-            const g = JSON.parse(f.talhao.coordenadas)
-            ;(g?.coordinates?.[0] ?? []).forEach(([lng, lat]: [number, number]) => allPts.push([lng, lat]))
-          } catch { /* ok */ }
-        })
-        if (allPts.length > 0) {
-          centerLng = allPts.reduce((s, p) => s + p[0], 0) / allPts.length
-          centerLat = allPts.reduce((s, p) => s + p[1], 0) / allPts.length
-          zoom = 13
-        }
 
+      // Priority: polygon centroids > fazenda coords > geocode city > default MT
+      let centerLng = -52.30, centerLat = -12.54, zoom = 11
+
+      const allPts: [number, number][] = []
+      features.forEach(f => {
+        if (!f.talhao?.coordenadas) return
+        try {
+          const g = JSON.parse(f.talhao.coordenadas)
+          ;(g?.coordinates?.[0] ?? []).forEach(([lng, lat]: [number, number]) => allPts.push([lng, lat]))
+        } catch { /* ok */ }
+      })
+
+      if (allPts.length > 0) {
+        centerLng = allPts.reduce((s, p) => s + p[0], 0) / allPts.length
+        centerLat = allPts.reduce((s, p) => s + p[1], 0) / allPts.length
+        zoom = 13
+      } else if (fazendaLatitude && fazendaLongitude) {
+        centerLng = fazendaLongitude
+        centerLat = fazendaLatitude
+        zoom = 13
+      } else if (fazendaLocalizacao) {
+        const coords = await geocodeCity(fazendaLocalizacao)
+        if (coords && !cancelled) {
+          centerLng = coords[0]
+          centerLat = coords[1]
+          zoom = 12
+        }
+      }
+
+      if (cancelled || !mapContainerRef.current) return
+
+      try {
         const map = new maplibregl.Map({
           container: mapContainerRef.current!,
           style: OSM_STYLE,
@@ -161,23 +198,8 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
 
         map.on('load', () => {
           if (cancelled) return
+          addLayers(map, showDemos ? DEMO_GEO : fieldsGeo)
 
-          // ── Camadas dos talhões reais ────────────────────────────────────
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          map.addSource('fields', { type: 'geojson', data: (showDemos ? DEMO_GEO : fieldsGeo) as any })
-          map.addLayer({ id: 'fields-fill',    type: 'fill',   source: 'fields', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.35 } })
-          map.addLayer({ id: 'fields-outline', type: 'line',   source: 'fields', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
-          map.addLayer({ id: 'fields-labels',  type: 'symbol', source: 'fields',
-            layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-anchor': 'center' },
-            paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2 },
-          })
-
-          // ── Preview do desenho ───────────────────────────────────────────
-          map.addSource('draw-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-          map.addLayer({ id: 'draw-fill',    type: 'fill', source: 'draw-preview', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-          map.addLayer({ id: 'draw-outline', type: 'line', source: 'draw-preview', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-dasharray': [4, 3] } })
-
-          // Hover e click nos campos
           map.on('mouseenter', 'fields-fill', () => { map.getCanvas().style.cursor = 'pointer' })
           map.on('mouseleave', 'fields-fill', () => { map.getCanvas().style.cursor = '' })
           map.on('click', 'fields-fill', (e: AnyMap) => {
@@ -216,7 +238,9 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
       } catch (err) {
         console.error('[TalhoesMap] init:', err)
       }
-    }).catch(err => console.error('[TalhoesMap] import:', err))
+    }
+
+    init().catch(err => console.error('[TalhoesMap] import:', err))
 
     return () => {
       cancelled = true
@@ -228,7 +252,7 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Atualizar dados quando features mudam ─────────────────────────────────
+  // ── Update data when features change ────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -238,45 +262,29 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
     } catch { /* ok */ }
   }, [fieldsGeo, showDemos, ready])
 
-  // ── Toggle satélite ───────────────────────────────────────────────────────
+  // ── Satellite toggle ─────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
     try { map.setStyle(satellite ? SAT_STYLE : OSM_STYLE) } catch { /* ok */ }
   }, [satellite, ready])
 
-  // Após trocar estilo, recriar camadas (o setStyle limpa tudo)
+  // Re-add layers after style swap (setStyle clears everything)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-
     function onStyleLoad() {
       try {
-        if (!map.getSource('fields')) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          map.addSource('fields', { type: 'geojson', data: (showDemos ? DEMO_GEO : fieldsGeo) as any })
-          map.addLayer({ id: 'fields-fill',    type: 'fill',   source: 'fields', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.35 } })
-          map.addLayer({ id: 'fields-outline', type: 'line',   source: 'fields', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
-          map.addLayer({ id: 'fields-labels',  type: 'symbol', source: 'fields',
-            layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-anchor': 'center' },
-            paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2 },
-          })
-        }
-        if (!map.getSource('draw-preview')) {
-          map.addSource('draw-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-          map.addLayer({ id: 'draw-fill',    type: 'fill', source: 'draw-preview', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-          map.addLayer({ id: 'draw-outline', type: 'line', source: 'draw-preview', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-dasharray': [4, 3] } })
-        }
+        addLayers(map, showDemos ? DEMO_GEO : fieldsGeo)
         map.on('mouseenter', 'fields-fill', () => { map.getCanvas().style.cursor = 'pointer' })
         map.on('mouseleave', 'fields-fill', () => { map.getCanvas().style.cursor = '' })
       } catch { /* ok */ }
     }
-
     map.on('styledata', onStyleLoad)
     return () => { try { map.off('styledata', onStyleLoad) } catch { /* ok */ } }
   }, [ready, fieldsGeo, showDemos])
 
-  // ── Atualizar preview de desenho ──────────────────────────────────────────
+  // ── Draw preview ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
@@ -284,27 +292,18 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
       const src = map.getSource('draw-preview')
       if (src) src.setData(drawPts.length >= 2 ? {
         type: 'FeatureCollection',
-        features: [{
-          type: 'Feature', properties: {},
-          geometry: { type: 'Polygon', coordinates: [[...drawPts, drawPts[0]]] },
-        }],
+        features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...drawPts, drawPts[0]]] } }],
       } : { type: 'FeatureCollection', features: [] })
     } catch { /* ok */ }
   }, [drawPts, ready])
 
-  // ── Ferramenta de desenho ─────────────────────────────────────────────────
+  // ── Draw tool ────────────────────────────────────────────────────────────────
   const startDraw = useCallback((talhaoId: string) => {
     const map = mapRef.current
     if (!map) return
-    setDrawTarget(talhaoId)
-    setDrawPts([])
-    setDrawing(true)
-    setPopup(null)
+    setDrawTarget(talhaoId); setDrawPts([]); setDrawing(true); setPopup(null)
     map.getCanvas().style.cursor = 'crosshair'
-
-    const onClick = (e: AnyMap) => {
-      setDrawPts(prev => [...prev, [e.lngLat.lng, e.lngLat.lat]])
-    }
+    const onClick = (e: AnyMap) => setDrawPts(prev => [...prev, [e.lngLat.lng, e.lngLat.lat]])
     map.on('click', onClick)
     drawListenerRef.current = onClick
   }, [])
@@ -312,42 +311,29 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
   const finishDraw = useCallback(() => {
     const map = mapRef.current
     if (map && drawListenerRef.current) {
-      try {
-        map.off('click', drawListenerRef.current)
-        map.getCanvas().style.cursor = ''
-      } catch { /* ok */ }
+      try { map.off('click', drawListenerRef.current); map.getCanvas().style.cursor = '' } catch { /* ok */ }
       drawListenerRef.current = null
     }
-
     if (drawPts.length >= 3 && drawTarget && onSaveCoords) {
       const ring = [...drawPts, drawPts[0]]
       onSaveCoords(drawTarget, JSON.stringify({ type: 'Polygon', coordinates: [ring] }))
     }
-
-    setDrawing(false)
-    setDrawTarget(null)
-    setDrawPts([])
+    setDrawing(false); setDrawTarget(null); setDrawPts([])
   }, [drawPts, drawTarget, onSaveCoords])
 
   const cancelDraw = useCallback(() => {
     const map = mapRef.current
     if (map && drawListenerRef.current) {
-      try {
-        map.off('click', drawListenerRef.current)
-        map.getCanvas().style.cursor = ''
-      } catch { /* ok */ }
+      try { map.off('click', drawListenerRef.current); map.getCanvas().style.cursor = '' } catch { /* ok */ }
       drawListenerRef.current = null
     }
-    setDrawing(false)
-    setDrawTarget(null)
-    setDrawPts([])
+    setDrawing(false); setDrawTarget(null); setDrawPts([])
   }, [])
 
-  // ── Popup nativo MapLibre ─────────────────────────────────────────────────
+  // ── Popup ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !popup) return
-
     let mlPopup: AnyMap
     import('maplibre-gl').then(({ default: maplibregl }) => {
       mlPopup = new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
@@ -356,21 +342,9 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
         .addTo(map)
       mlPopup.on('close', () => setPopup(null))
     }).catch(() => {/* ok */})
-
     return () => { try { mlPopup?.remove() } catch { /* ok */ } }
   }, [popup, ready])
 
-  // ── CSS do MapLibre (import dinâmico só no browser) ───────────────────────
-  useEffect(() => {
-    if (document.getElementById('maplibre-css')) return
-    const link = document.createElement('link')
-    link.id   = 'maplibre-css'
-    link.rel  = 'stylesheet'
-    link.href = 'https://unpkg.com/maplibre-gl@5.2.0/dist/maplibre-gl.css'
-    document.head.appendChild(link)
-  }, [])
-
-  // ── Estilos dos botões ────────────────────────────────────────────────────
   const btnBase: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 6,
     background: 'rgba(255,255,255,0.97)', color: '#374151',
@@ -379,14 +353,11 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
     cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.14)',
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
-
-      {/* Container do mapa MapLibre */}
       <div ref={mapContainerRef} style={{ height, width: '100%', background: '#dde0e4' }} />
 
-      {/* ── Controles superiores esquerda ── */}
+      {/* Top-left controls */}
       <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => setSatellite(v => !v)}
           style={{ ...btnBase, ...(satellite ? { background: '#1d4ed8', color: '#fff', borderColor: '#1d4ed8' } : {}) }}>
@@ -405,7 +376,7 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
         )}
       </div>
 
-      {/* ── Banner modo desenho ── */}
+      {/* Drawing mode banner */}
       {drawing && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
@@ -415,7 +386,7 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
           boxShadow: '0 4px 20px rgba(29,78,216,0.4)',
           fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
         }}>
-          <span>✏ {drawPts.length} vértice{drawPts.length !== 1 ? 's' : ''} · clique para adicionar</span>
+          <span>✏ {drawPts.length} vértice{drawPts.length !== 1 ? 's' : ''} · clique no mapa</span>
           <button onClick={finishDraw} disabled={drawPts.length < 3}
             style={{ background: drawPts.length >= 3 ? '#16a34a' : '#6b7280', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: drawPts.length >= 3 ? 'pointer' : 'not-allowed' }}>
             ✓ Concluir
@@ -427,7 +398,7 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
         </div>
       )}
 
-      {/* ── Legenda ── */}
+      {/* Legend */}
       <div style={{
         position: 'absolute', bottom: 36, left: 12, zIndex: 10,
         background: 'rgba(255,255,255,0.97)', borderRadius: 12,
@@ -441,12 +412,10 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
             <span style={{ color: '#374151' }}>{cfg.label}</span>
           </div>
         ))}
-        {showDemos && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5e7eb', fontSize: 10, color: '#9ca3af' }}>📍 Modo demo</div>
-        )}
+        {showDemos && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #e5e7eb', fontSize: 10, color: '#9ca3af' }}>📍 Modo demo</div>}
       </div>
 
-      {/* ── Banner demo ── */}
+      {/* Demo banner */}
       {showDemos && (
         <div style={{
           position: 'absolute', top: 12, right: 12, zIndex: 10,
@@ -459,7 +428,6 @@ export default function TalhoesMap({ features, onSaveCoords, height = '520px' }:
         </div>
       )}
 
-      {/* ── Dica ── */}
       {!drawing && (
         <div style={{
           position: 'absolute', bottom: 36, right: 50, zIndex: 10,
