@@ -376,11 +376,9 @@ export default function TalhaoPage() {
 
   async function handleDeleteAplicacao(aplicacaoId: string) {
     const db = getDB()
-    const now = new Date().toISOString()
-    // Soft-delete: mark deleted_at instead of removing — prevents ghost resurrection on sync
-    await db.aplicacoes.update(aplicacaoId, { deleted_at: now, _syncStatus: 'pending' })
-    // Sync the soft-delete to Supabase
-    await enqueueSync('aplicacao', 'upsert', { id: aplicacaoId, deleted_at: now, updatedAt: now })
+    // Hard delete: remove from local Dexie + send delete action to Supabase
+    await db.aplicacoes.delete(aplicacaoId)
+    await enqueueSync('aplicacao', 'delete', { id: aplicacaoId })
     processSyncQueue()
     setAplicacoes(prev => prev.filter(a => a.id !== aplicacaoId))
     setDeletingApId(null)
@@ -1598,8 +1596,8 @@ export default function TalhaoPage() {
         }
       >
         <div className="space-y-4">
-          {/* Tipo toggle — only when not editing */}
-          {!editingAplicacao && (
+          {/* Tipo toggle — sempre visível, inclusive ao editar (permite reverter realizada → planejada) */}
+          {!aplicacaoBase && (
             <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-dark)' }}>
               {(['planejada', 'realizada'] as const).map(t => (
                 <button
@@ -1613,7 +1611,7 @@ export default function TalhaoPage() {
                     boxShadow: form.tipo === t ? 'var(--shadow-xs)' : 'none',
                   }}
                 >
-                  {t === 'planejada' ? '📅 Agendar' : '✓ Registrar como realizada'}
+                  {t === 'planejada' ? '📅 Agendada' : '✓ Realizada'}
                 </button>
               ))}
             </div>
