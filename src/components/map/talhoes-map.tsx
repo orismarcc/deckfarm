@@ -4,7 +4,7 @@ import type { Talhao, Aplicacao } from '@/types'
 import { culturaLabel, culturaIcon } from '@/lib/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyMap = any
+type L = any
 
 const STATUS_CFG: Record<string, { color: string; label: string }> = {
   atrasado:        { color: '#dc2626', label: 'Atrasado'     },
@@ -29,22 +29,13 @@ interface TalhoesMapProps {
   fazendaLocalizacao?: string
 }
 
-// Demo polygons in Mato Grosso region
-const DEMO_GEO = {
-  type: 'FeatureCollection' as const,
-  features: [
-    {
-      type: 'Feature' as const,
-      properties: { id: '__demo1', name: 'Talhão Norte (Demo)', color: '#dc2626', label: 'Atrasado', area: 45, apps: 0 },
-      geometry: { type: 'Polygon' as const, coordinates: [[[-52.31,-12.53],[-52.28,-12.53],[-52.28,-12.51],[-52.31,-12.51],[-52.31,-12.53]]] },
-    },
-    {
-      type: 'Feature' as const,
-      properties: { id: '__demo2', name: 'Talhão Sul (Demo)', color: '#d97706', label: 'Próximo (7d)', area: 22, apps: 0 },
-      geometry: { type: 'Polygon' as const, coordinates: [[[-52.31,-12.55],[-52.29,-12.55],[-52.29,-12.54],[-52.31,-12.54],[-52.31,-12.55]]] },
-    },
-  ],
-}
+// Demo polygons (Mato Grosso region) — GeoJSON [lng, lat]
+const DEMO_POLYGONS = [
+  { name: 'Talhão Norte (Demo)', color: '#dc2626', label: 'Atrasado',
+    coords: [[-12.53,-52.31],[-12.53,-52.28],[-12.51,-52.28],[-12.51,-52.31]] as [number,number][] },
+  { name: 'Talhão Sul (Demo)',   color: '#d97706', label: 'Próximo (7d)',
+    coords: [[-12.55,-52.31],[-12.55,-52.29],[-12.54,-52.29],[-12.54,-52.31]] as [number,number][] },
+]
 
 function worstStatus(aplicacoes: Aplicacao[]): string {
   if (!aplicacoes?.length) return 'sem_aplicacao'
@@ -55,44 +46,22 @@ function worstStatus(aplicacoes: Aplicacao[]): string {
   return 'sem_aplicacao'
 }
 
-const OSM_STYLE = {
-  version: 8 as const,
-  sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' } },
-  layers: [{ id: 'osm-tiles', type: 'raster' as const, source: 'osm' }],
-}
-const SAT_STYLE = {
-  version: 8 as const,
-  sources: { esri: { type: 'raster' as const, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '© Esri' } },
-  layers: [{ id: 'esri-tiles', type: 'raster' as const, source: 'esri' }],
+// GeoJSON Polygon coordinates [lng,lat][] → Leaflet LatLng [lat,lng][]
+function geoToLeaflet(ring: [number, number][]): [number, number][] {
+  return ring.map(([lng, lat]) => [lat, lng])
 }
 
-async function geocodeCity(localizacao: string): Promise<[number, number] | null> {
+async function geocodeCity(loc: string): Promise<[number, number] | null> {
   try {
-    const q = encodeURIComponent(localizacao + ', Brasil')
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`, {
-      headers: { 'Accept-Language': 'pt-BR' }
-    })
+    const q = encodeURIComponent(loc + ', Brasil')
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`,
+      { headers: { 'Accept-Language': 'pt-BR' } }
+    )
     const data = await res.json()
-    if (data?.[0]) return [parseFloat(data[0].lon), parseFloat(data[0].lat)]
+    if (data?.[0]) return [parseFloat(data[0].lat), parseFloat(data[0].lon)]
   } catch { /* ok */ }
   return null
-}
-
-function addLayers(map: AnyMap, geoData: AnyMap) {
-  if (!map.getSource('fields')) {
-    map.addSource('fields', { type: 'geojson', data: geoData })
-    map.addLayer({ id: 'fields-fill',    type: 'fill',   source: 'fields', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.35 } })
-    map.addLayer({ id: 'fields-outline', type: 'line',   source: 'fields', paint: { 'line-color': ['get', 'color'], 'line-width': 2.5 } })
-    map.addLayer({ id: 'fields-labels',  type: 'symbol', source: 'fields',
-      layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-anchor': 'center' },
-      paint: { 'text-color': '#111', 'text-halo-color': '#fff', 'text-halo-width': 2 },
-    })
-  }
-  if (!map.getSource('draw-preview')) {
-    map.addSource('draw-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-    map.addLayer({ id: 'draw-fill',    type: 'fill', source: 'draw-preview', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-    map.addLayer({ id: 'draw-outline', type: 'line', source: 'draw-preview', paint: { 'line-color': '#16a34a', 'line-width': 2, 'line-dasharray': [4, 3] } })
-  }
 }
 
 export default function TalhoesMap({
@@ -103,144 +72,167 @@ export default function TalhoesMap({
   fazendaLongitude,
   fazendaLocalizacao,
 }: TalhoesMapProps) {
-  const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef          = useRef<AnyMap>(null)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const mapRef        = useRef<L>(null)
+  const layersRef     = useRef<L[]>([])       // field polygon layers
+  const drawLayersRef = useRef<L[]>([])        // in-progress drawing layers
   const [ready,      setReady]      = useState(false)
   const [satellite,  setSatellite]  = useState(false)
   const [drawing,    setDrawing]    = useState(false)
   const [drawTarget, setDrawTarget] = useState<string | null>(null)
-  const [drawPts,    setDrawPts]    = useState<[number, number][]>([])
-  const [popup,      setPopup]      = useState<{ lng: number; lat: number; html: string } | null>(null)
-  const drawListenerRef = useRef<((e: AnyMap) => void) | null>(null)
-
+  const [drawPts,    setDrawPts]    = useState<[number, number][]>([]) // [lat, lng]
+  const tileLayerRef  = useRef<L>(null)
   const showDemos = features.length === 0
 
-  const fieldsGeo = useMemo(() => ({
-    type: 'FeatureCollection' as const,
-    features: features
-      .filter(f => f.talhao?.coordenadas)
-      .map(f => {
-        const status = worstStatus(f.aplicacoes ?? [])
-        const cfg    = STATUS_CFG[status] ?? STATUS_CFG.sem_aplicacao
-        const apps   = f.aplicacoes ?? []
-        const late   = apps.filter(a => a.status === 'atrasado').length
-        let geo
-        try { geo = JSON.parse(f.talhao.coordenadas!) } catch { return null }
-        return {
-          type: 'Feature' as const,
-          properties: {
-            id:      f.talhao.id,
-            name:    f.talhao.nome,
-            color:   cfg.color,
-            label:   cfg.label,
-            area:    f.talhao.area,
-            apps:    apps.length,
-            late,
-            cultura: `${culturaIcon(f.talhao.cultura)} ${culturaLabel(f.talhao.cultura) ?? f.talhao.cultura}`,
-            href:    `/talhoes/${f.talhao.id}`,
-          },
-          geometry: geo,
-        }
-      })
-      .filter(Boolean),
+  const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+
+  // ── Build field layer data ─────────────────────────────────────────────────
+  const fieldData = useMemo(() => features.map(f => {
+    const status = worstStatus(f.aplicacoes ?? [])
+    const cfg = STATUS_CFG[status] ?? STATUS_CFG.sem_aplicacao
+    let ring: [number,number][] | null = null
+    if (f.talhao.coordenadas) {
+      try {
+        const geo = JSON.parse(f.talhao.coordenadas)
+        ring = geoToLeaflet(geo.coordinates[0])
+      } catch { /* ok */ }
+    }
+    return { talhao: f.talhao, cfg, ring, apps: f.aplicacoes ?? [], late: (f.aplicacoes ?? []).filter(a => a.status === 'atrasado').length }
   }), [features])
 
-  // ── Initialize MapLibre ──────────────────────────────────────────────────────
+  // ── Render field polygons onto map ─────────────────────────────────────────
+  const renderFields = useCallback((leaflet: L, map: L) => {
+    layersRef.current.forEach(l => { try { l.remove() } catch { /* ok */ } })
+    layersRef.current = []
+
+    if (showDemos) {
+      DEMO_POLYGONS.forEach(d => {
+        const poly = leaflet.polygon(d.coords, {
+          color: d.color, fillColor: d.color, fillOpacity: 0.25, weight: 2,
+        }).addTo(map)
+        poly.bindPopup(`<b>🌱 ${d.name}</b><br><span style="font-size:11px;color:#6b7280">Polígono de demonstração</span>`)
+        layersRef.current.push(poly)
+      })
+      return
+    }
+
+    fieldData.forEach(({ talhao, cfg, ring, apps, late }) => {
+      if (!ring) return
+      const poly = leaflet.polygon(ring, {
+        color: cfg.color, fillColor: cfg.color, fillOpacity: 0.3, weight: 2.5,
+      }).addTo(map)
+
+      poly.bindPopup(`
+        <div style="min-width:180px;font-family:system-ui;font-size:13px">
+          <div style="font-weight:700;margin-bottom:6px;font-size:14px">
+            ${culturaIcon(talhao.cultura)} ${talhao.nome}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            <span style="background:${cfg.color}20;color:${cfg.color};border:1px solid ${cfg.color}55;
+              font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px">${cfg.label}</span>
+            ${late > 0 ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px">⚠ ${late} atrasada${late > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:10px">
+            📐 <b>${talhao.area} ha</b> · 💊 <b>${apps.length} aplicações</b>
+          </div>
+          <a href="/talhoes/${talhao.id}" style="display:block;text-align:center;
+            background:#16a34a;color:#fff;padding:6px 12px;border-radius:8px;
+            font-size:12px;font-weight:600;text-decoration:none">Ver talhão →</a>
+        </div>
+      `, { maxWidth: 260 })
+
+      layersRef.current.push(poly)
+
+      // Label
+      try {
+        const center = poly.getBounds().getCenter()
+        const label = leaflet.divIcon({
+          className: '',
+          html: `<div style="font-size:11px;font-weight:700;color:#111;text-shadow:0 0 3px white,0 0 3px white;pointer-events:none;white-space:nowrap">${talhao.nome}</div>`,
+          iconAnchor: [0, 0],
+        })
+        const marker = leaflet.marker(center, { icon: label, interactive: false }).addTo(map)
+        layersRef.current.push(marker)
+      } catch { /* ok */ }
+    })
+  }, [fieldData, showDemos])
+
+  // ── Render draw preview ───────────────────────────────────────────────────
+  const renderDrawPreview = useCallback((leaflet: L, map: L, pts: [number,number][]) => {
+    drawLayersRef.current.forEach(l => { try { l.remove() } catch { /* ok */ } })
+    drawLayersRef.current = []
+    if (pts.length === 0) return
+
+    // Vertex dots
+    pts.forEach(pt => {
+      const dot = leaflet.circleMarker(pt, { radius: 5, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1, weight: 2 }).addTo(map)
+      drawLayersRef.current.push(dot)
+    })
+
+    // Line preview
+    if (pts.length >= 2) {
+      const line = leaflet.polyline([...pts, pts[0]], { color: '#16a34a', weight: 2, dashArray: '6 4' }).addTo(map)
+      drawLayersRef.current.push(line)
+    }
+    if (pts.length >= 3) {
+      const fill = leaflet.polygon(pts, { color: '#16a34a', fillColor: '#16a34a', fillOpacity: 0.15, weight: 0 }).addTo(map)
+      drawLayersRef.current.push(fill)
+    }
+  }, [])
+
+  // ── Initialize Leaflet ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return
+    if (!containerRef.current || mapRef.current) return
     let cancelled = false
 
     async function init() {
-      const { default: maplibregl } = await import('maplibre-gl')
-      if (cancelled || !mapContainerRef.current || mapRef.current) return
+      const leaflet = (await import('leaflet')).default
+      if (cancelled || !containerRef.current || mapRef.current) return
 
-      // Priority: polygon centroids > fazenda coords > geocode city > default MT
-      let centerLng = -52.30, centerLat = -12.54, zoom = 11
+      // Fix broken default icon paths in webpack
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (leaflet.Icon.Default.prototype as any)._getIconUrl
 
-      const allPts: [number, number][] = []
+      // Determine center
+      let centerLat = -12.54, centerLng = -52.30, zoom = 11
+
+      const allPts: [number,number][] = []
       features.forEach(f => {
         if (!f.talhao?.coordenadas) return
         try {
           const g = JSON.parse(f.talhao.coordenadas)
-          ;(g?.coordinates?.[0] ?? []).forEach(([lng, lat]: [number, number]) => allPts.push([lng, lat]))
+          ;(g?.coordinates?.[0] ?? []).forEach(([lng, lat]: [number,number]) => allPts.push([lat, lng]))
         } catch { /* ok */ }
       })
 
       if (allPts.length > 0) {
-        centerLng = allPts.reduce((s, p) => s + p[0], 0) / allPts.length
-        centerLat = allPts.reduce((s, p) => s + p[1], 0) / allPts.length
+        centerLat = allPts.reduce((s, p) => s + p[0], 0) / allPts.length
+        centerLng = allPts.reduce((s, p) => s + p[1], 0) / allPts.length
         zoom = 13
       } else if (fazendaLatitude && fazendaLongitude) {
-        centerLng = fazendaLongitude
-        centerLat = fazendaLatitude
-        zoom = 13
+        centerLat = fazendaLatitude; centerLng = fazendaLongitude; zoom = 13
       } else if (fazendaLocalizacao) {
-        const coords = await geocodeCity(fazendaLocalizacao)
-        if (coords && !cancelled) {
-          centerLng = coords[0]
-          centerLat = coords[1]
-          zoom = 12
-        }
+        const gc = await geocodeCity(fazendaLocalizacao)
+        if (gc && !cancelled) { centerLat = gc[0]; centerLng = gc[1]; zoom = 12 }
       }
 
-      if (cancelled || !mapContainerRef.current) return
+      if (cancelled || !containerRef.current) return
 
-      try {
-        const map = new maplibregl.Map({
-          container: mapContainerRef.current!,
-          style: OSM_STYLE,
-          center: [centerLng, centerLat],
-          zoom,
-          attributionControl: { compact: true },
-        })
+      const map = leaflet.map(containerRef.current, { zoomControl: true, attributionControl: true })
+      map.setView([centerLat, centerLng], zoom)
 
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      const tile = leaflet.tileLayer(OSM_URL, { attribution: '© OpenStreetMap', maxZoom: 20 })
+      tile.addTo(map)
+      tileLayerRef.current = tile
 
-        map.on('load', () => {
-          if (cancelled) return
-          addLayers(map, showDemos ? DEMO_GEO : fieldsGeo)
+      renderFields(leaflet, map)
 
-          map.on('mouseenter', 'fields-fill', () => { map.getCanvas().style.cursor = 'pointer' })
-          map.on('mouseleave', 'fields-fill', () => { map.getCanvas().style.cursor = '' })
-          map.on('click', 'fields-fill', (e: AnyMap) => {
-            const props = e.features?.[0]?.properties
-            if (!props || props.id?.startsWith('__demo')) {
-              setPopup({ lng: e.lngLat.lng, lat: e.lngLat.lat,
-                html: `<div style="font-family:system-ui;padding:4px 0"><b>🌱 ${props?.name ?? 'Demo'}</b><br><span style="font-size:11px;color:#6b7280">Polígono de demonstração</span></div>` })
-              return
-            }
-            setPopup({
-              lng: e.lngLat.lng, lat: e.lngLat.lat,
-              html: `
-                <div style="min-width:190px;font-family:system-ui;font-size:13px">
-                  <div style="font-weight:700;margin-bottom:6px;font-size:14px">${props.cultura ?? ''} ${props.name}</div>
-                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-                    <span style="background:${props.color}20;color:${props.color};border:1px solid ${props.color}55;
-                      font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px">${props.label}</span>
-                    ${props.late > 0 ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px">⚠ ${props.late} atrasada${props.late > 1 ? 's' : ''}</span>` : ''}
-                  </div>
-                  <div style="font-size:11px;color:#555;margin-bottom:10px">
-                    📐 <b>${props.area} ha</b>&nbsp;·&nbsp;💊 <b>${props.apps} aplicações</b>
-                  </div>
-                  <a href="${props.href}" style="display:block;text-align:center;
-                    background:#16a34a;color:#fff;padding:6px 12px;border-radius:8px;
-                    font-size:12px;font-weight:600;text-decoration:none">Ver talhão →</a>
-                </div>
-              `,
-            })
-          })
-
-          mapRef.current = map
-          if (!cancelled) setReady(true)
-        })
-
-        map.on('error', (e: AnyMap) => console.warn('[TalhoesMap]', e.error))
-      } catch (err) {
-        console.error('[TalhoesMap] init:', err)
-      }
+      mapRef.current = map
+      if (!cancelled) setReady(true)
     }
 
-    init().catch(err => console.error('[TalhoesMap] import:', err))
+    init().catch(err => console.error('[TalhoesMap] init:', err))
 
     return () => {
       cancelled = true
@@ -252,98 +244,76 @@ export default function TalhoesMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Update data when features change ────────────────────────────────────────
+  // ── Re-render polygons when data changes ──────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    try {
-      const src = map.getSource('fields')
-      if (src) src.setData(showDemos ? DEMO_GEO : fieldsGeo)
-    } catch { /* ok */ }
-  }, [fieldsGeo, showDemos, ready])
+    import('leaflet').then(m => renderFields(m.default, map)).catch(() => {/* ok */})
+  }, [fieldData, showDemos, ready, renderFields])
 
-  // ── Satellite toggle ─────────────────────────────────────────────────────────
+  // ── Satellite toggle ──────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    try { map.setStyle(satellite ? SAT_STYLE : OSM_STYLE) } catch { /* ok */ }
+    import('leaflet').then(({ default: leaflet }) => {
+      if (tileLayerRef.current) { try { tileLayerRef.current.remove() } catch { /* ok */ } }
+      const tile = leaflet.tileLayer(satellite ? SAT_URL : OSM_URL, { attribution: satellite ? '© Esri' : '© OpenStreetMap', maxZoom: 20 })
+      tile.addTo(map)
+      tileLayerRef.current = tile
+    }).catch(() => {/* ok */})
   }, [satellite, ready])
 
-  // Re-add layers after style swap (setStyle clears everything)
+  // ── Draw preview update ───────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    function onStyleLoad() {
-      try {
-        addLayers(map, showDemos ? DEMO_GEO : fieldsGeo)
-        map.on('mouseenter', 'fields-fill', () => { map.getCanvas().style.cursor = 'pointer' })
-        map.on('mouseleave', 'fields-fill', () => { map.getCanvas().style.cursor = '' })
-      } catch { /* ok */ }
-    }
-    map.on('styledata', onStyleLoad)
-    return () => { try { map.off('styledata', onStyleLoad) } catch { /* ok */ } }
-  }, [ready, fieldsGeo, showDemos])
+    import('leaflet').then(m => renderDrawPreview(m.default, map, drawPts)).catch(() => {/* ok */})
+  }, [drawPts, ready, renderDrawPreview])
 
-  // ── Draw preview ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    try {
-      const src = map.getSource('draw-preview')
-      if (src) src.setData(drawPts.length >= 2 ? {
-        type: 'FeatureCollection',
-        features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[...drawPts, drawPts[0]]] } }],
-      } : { type: 'FeatureCollection', features: [] })
-    } catch { /* ok */ }
-  }, [drawPts, ready])
-
-  // ── Draw tool ────────────────────────────────────────────────────────────────
+  // ── Start drawing ─────────────────────────────────────────────────────────
   const startDraw = useCallback((talhaoId: string) => {
     const map = mapRef.current
     if (!map) return
-    setDrawTarget(talhaoId); setDrawPts([]); setDrawing(true); setPopup(null)
-    map.getCanvas().style.cursor = 'crosshair'
-    const onClick = (e: AnyMap) => setDrawPts(prev => [...prev, [e.lngLat.lng, e.lngLat.lat]])
-    map.on('click', onClick)
-    drawListenerRef.current = onClick
+    setDrawTarget(talhaoId); setDrawPts([]); setDrawing(true)
+    map.getContainer().style.cursor = 'crosshair'
   }, [])
+
+  // Click handler lives as a map event — attach/detach when drawing changes
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    if (!drawing) {
+      map.getContainer().style.cursor = ''
+      return
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function onClick(e: any) {
+      setDrawPts(prev => [...prev, [e.latlng.lat, e.latlng.lng]])
+    }
+    map.on('click', onClick)
+    return () => { try { map.off('click', onClick) } catch { /* ok */ } }
+  }, [drawing, ready])
 
   const finishDraw = useCallback(() => {
     const map = mapRef.current
-    if (map && drawListenerRef.current) {
-      try { map.off('click', drawListenerRef.current); map.getCanvas().style.cursor = '' } catch { /* ok */ }
-      drawListenerRef.current = null
-    }
+    if (map) map.getContainer().style.cursor = ''
     if (drawPts.length >= 3 && drawTarget && onSaveCoords) {
-      const ring = [...drawPts, drawPts[0]]
+      // Convert [lat,lng] → GeoJSON [lng,lat] with closing point
+      const ring = [...drawPts.map(([lat, lng]) => [lng, lat] as [number,number]), [drawPts[0][1], drawPts[0][0]] as [number,number]]
       onSaveCoords(drawTarget, JSON.stringify({ type: 'Polygon', coordinates: [ring] }))
     }
+    drawLayersRef.current.forEach(l => { try { l.remove() } catch { /* ok */ } })
+    drawLayersRef.current = []
     setDrawing(false); setDrawTarget(null); setDrawPts([])
   }, [drawPts, drawTarget, onSaveCoords])
 
   const cancelDraw = useCallback(() => {
     const map = mapRef.current
-    if (map && drawListenerRef.current) {
-      try { map.off('click', drawListenerRef.current); map.getCanvas().style.cursor = '' } catch { /* ok */ }
-      drawListenerRef.current = null
-    }
+    if (map) map.getContainer().style.cursor = ''
+    drawLayersRef.current.forEach(l => { try { l.remove() } catch { /* ok */ } })
+    drawLayersRef.current = []
     setDrawing(false); setDrawTarget(null); setDrawPts([])
   }, [])
-
-  // ── Popup ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready || !popup) return
-    let mlPopup: AnyMap
-    import('maplibre-gl').then(({ default: maplibregl }) => {
-      mlPopup = new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
-        .setLngLat([popup.lng, popup.lat])
-        .setHTML(popup.html)
-        .addTo(map)
-      mlPopup.on('close', () => setPopup(null))
-    }).catch(() => {/* ok */})
-    return () => { try { mlPopup?.remove() } catch { /* ok */ } }
-  }, [popup, ready])
 
   const btnBase: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 6,
@@ -355,10 +325,10 @@ export default function TalhoesMap({
 
   return (
     <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
-      <div ref={mapContainerRef} style={{ height, width: '100%', background: '#dde0e4' }} />
+      <div ref={containerRef} style={{ height, width: '100%', background: '#dde0e4' }} />
 
       {/* Top-left controls */}
-      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1000, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => setSatellite(v => !v)}
           style={{ ...btnBase, ...(satellite ? { background: '#1d4ed8', color: '#fff', borderColor: '#1d4ed8' } : {}) }}>
           🛰 {satellite ? 'Mapa' : 'Satélite'}
@@ -380,7 +350,7 @@ export default function TalhoesMap({
       {drawing && (
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 10, background: '#1d4ed8', color: '#fff',
+          zIndex: 1000, background: '#1d4ed8', color: '#fff',
           borderRadius: 12, padding: '8px 16px',
           display: 'flex', alignItems: 'center', gap: 10,
           boxShadow: '0 4px 20px rgba(29,78,216,0.4)',
@@ -400,7 +370,7 @@ export default function TalhoesMap({
 
       {/* Legend */}
       <div style={{
-        position: 'absolute', bottom: 36, left: 12, zIndex: 10,
+        position: 'absolute', bottom: 36, left: 12, zIndex: 1000,
         background: 'rgba(255,255,255,0.97)', borderRadius: 12,
         padding: '10px 14px', boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
         fontSize: 11, fontWeight: 500, pointerEvents: 'none',
@@ -418,7 +388,7 @@ export default function TalhoesMap({
       {/* Demo banner */}
       {showDemos && (
         <div style={{
-          position: 'absolute', top: 12, right: 12, zIndex: 10,
+          position: 'absolute', top: 12, right: 12, zIndex: 1000,
           background: 'rgba(22,163,74,0.93)', color: '#fff',
           borderRadius: 12, padding: '8px 14px', maxWidth: 220,
           fontSize: 11, fontWeight: 500, boxShadow: '0 2px 12px rgba(22,163,74,0.3)',
@@ -430,7 +400,7 @@ export default function TalhoesMap({
 
       {!drawing && (
         <div style={{
-          position: 'absolute', bottom: 36, right: 50, zIndex: 10,
+          position: 'absolute', bottom: 36, right: 50, zIndex: 1000,
           background: 'rgba(255,255,255,0.9)', borderRadius: 8,
           padding: '4px 9px', fontSize: 10, color: '#6b7280',
           boxShadow: '0 1px 4px rgba(0,0,0,0.1)', pointerEvents: 'none',

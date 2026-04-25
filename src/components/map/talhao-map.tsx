@@ -11,15 +11,23 @@ interface TalhaoMapProps {
   height?: string
 }
 
-const OSM_STYLE = {
-  version: 8 as const,
-  sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' } },
-  layers: [{ id: 'osm-tiles', type: 'raster' as const, source: 'osm' }],
-}
-const SAT_STYLE = {
-  version: 8 as const,
-  sources: { esri: { type: 'raster' as const, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '© Esri' } },
-  layers: [{ id: 'esri-tiles', type: 'raster' as const, source: 'esri' }],
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type L = any
+
+const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+
+function pinIcon(leaflet: L) {
+  return leaflet.divIcon({
+    className: '',
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="38" viewBox="0 0 26 38">
+      <path fill="#16a34a" stroke="white" stroke-width="1.5" d="M13 1C8.03 1 4 5.03 4 10c0 7.5 9 18 9 18s9-10.5 9-18c0-4.97-4.03-9-9-9z"/>
+      <circle fill="white" cx="13" cy="10" r="3.5"/>
+    </svg>`,
+    iconSize: [26, 38],
+    iconAnchor: [13, 38],
+    popupAnchor: [0, -38],
+  })
 }
 
 export function TalhaoMap({
@@ -31,96 +39,81 @@ export function TalhaoMap({
   height = '260px',
 }: TalhaoMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapRef    = useRef<any>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markerRef = useRef<any>(null)
+  const mapRef       = useRef<L>(null)
+  const markerRef    = useRef<L>(null)
+  const tileRef      = useRef<L>(null)
   const [satellite,  setSatellite]  = useState(false)
   const [ready,      setReady]      = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
 
-  // ── Init map ──────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     let cancelled = false
 
-    import('maplibre-gl').then(({ default: maplibregl }) => {
+    import('leaflet').then(({ default: leaflet }) => {
       if (cancelled || !containerRef.current || mapRef.current) return
-      try {
-        const centerLng = longitude ?? -52.0
-        const centerLat = latitude  ?? -12.5
-        const zoom      = latitude  ? 14 : 5
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (leaflet.Icon.Default.prototype as any)._getIconUrl
 
-        const map = new maplibregl.Map({
-          container: containerRef.current!,
-          style: OSM_STYLE,
-          center: [centerLng, centerLat],
-          zoom,
-          attributionControl: { compact: true },
-        })
+      const centerLat = latitude  ?? -12.5
+      const centerLng = longitude ?? -52.0
+      const zoom      = latitude  ? 14 : 5
 
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+      const map = leaflet.map(containerRef.current!, { zoomControl: true, attributionControl: true })
+      map.setView([centerLat, centerLng], zoom)
 
-        map.on('load', () => {
-          if (cancelled) return
+      const tile = leaflet.tileLayer(OSM_URL, { attribution: '© OpenStreetMap', maxZoom: 20 })
+      tile.addTo(map)
+      tileRef.current = tile
 
-          if (coordenadas) {
-            try {
-              const geo = JSON.parse(coordenadas)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              map.addSource('polygon', { type: 'geojson', data: geo as any })
-              map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-              map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
-            } catch { /* invalid GeoJSON */ }
-          }
-
-          if (latitude && longitude) {
-            markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: !readOnly })
-              .setLngLat([longitude, latitude])
-              .addTo(map)
-
-            if (!readOnly && onLocationSelect) {
-              markerRef.current.on('dragend', () => {
-                const lngLat = markerRef.current.getLngLat()
-                onLocationSelect(lngLat.lat, lngLat.lng)
-              })
-            }
-          }
-
-          if (!readOnly && onLocationSelect) {
-            map.getCanvas().style.cursor = 'crosshair'
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            map.on('click', (e: any) => {
-              const { lng, lat } = e.lngLat
-              if (markerRef.current) markerRef.current.remove()
-              markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: true })
-                .setLngLat([lng, lat])
-                .addTo(map)
-              markerRef.current.on('dragend', () => {
-                const lngLat = markerRef.current.getLngLat()
-                onLocationSelect(lngLat.lat, lngLat.lng)
-              })
-              onLocationSelect(lat, lng)
-            })
-          }
-
-          mapRef.current = map
-          if (!cancelled) setReady(true)
-        })
-
-        map.on('error', (e: { error: Error }) => console.warn('[TalhaoMap]', e.error))
-      } catch (err) {
-        console.error('[TalhaoMap] init:', err)
+      // Existing polygon
+      if (coordenadas) {
+        try {
+          const geo = JSON.parse(coordenadas)
+          const ring = geo.coordinates[0].map(([lng, lat]: [number,number]) => [lat, lng])
+          leaflet.polygon(ring, { color: '#16a34a', fillColor: '#16a34a', fillOpacity: 0.2, weight: 2 }).addTo(map)
+        } catch { /* invalid GeoJSON */ }
       }
-    }).catch(err => console.error('[TalhaoMap] import:', err))
+
+      // Existing marker
+      if (latitude && longitude) {
+        markerRef.current = leaflet.marker([latitude, longitude], {
+          icon: pinIcon(leaflet),
+          draggable: !readOnly,
+        }).addTo(map)
+
+        if (!readOnly && onLocationSelect) {
+          markerRef.current.on('dragend', () => {
+            const { lat, lng } = markerRef.current.getLatLng()
+            onLocationSelect(lat, lng)
+          })
+        }
+      }
+
+      // Click to place/move marker
+      if (!readOnly && onLocationSelect) {
+        map.getContainer().style.cursor = 'crosshair'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.on('click', (e: any) => {
+          const { lat, lng } = e.latlng
+          if (markerRef.current) markerRef.current.remove()
+          markerRef.current = leaflet.marker([lat, lng], { icon: pinIcon(leaflet), draggable: true }).addTo(map)
+          markerRef.current.on('dragend', () => {
+            const ll = markerRef.current.getLatLng()
+            onLocationSelect(ll.lat, ll.lng)
+          })
+          onLocationSelect(lat, lng)
+        })
+      }
+
+      mapRef.current = map
+      if (!cancelled) setReady(true)
+    }).catch(err => console.error('[TalhaoMap] init:', err))
 
     return () => {
       cancelled = true
-      if (mapRef.current) {
-        try { mapRef.current.remove() } catch { /* ok */ }
-        mapRef.current = null
-        markerRef.current = null
-      }
+      if (mapRef.current) { try { mapRef.current.remove() } catch { /* ok */ }; mapRef.current = null }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -129,93 +122,63 @@ export function TalhaoMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    try { map.setStyle(satellite ? SAT_STYLE : OSM_STYLE) } catch { /* ok */ }
+    import('leaflet').then(({ default: leaflet }) => {
+      if (tileRef.current) { try { tileRef.current.remove() } catch { /* ok */ } }
+      const tile = leaflet.tileLayer(satellite ? SAT_URL : OSM_URL, { attribution: satellite ? '© Esri' : '© OpenStreetMap', maxZoom: 20 })
+      tile.addTo(map)
+      tileRef.current = tile
+    }).catch(() => {/* ok */})
   }, [satellite, ready])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !ready) return
-    function onStyleData() {
-      try {
-        if (coordenadas && !map.getSource('polygon')) {
-          const geo = JSON.parse(coordenadas)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          map.addSource('polygon', { type: 'geojson', data: geo as any })
-          map.addLayer({ id: 'polygon-fill',    type: 'fill', source: 'polygon', paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 } })
-          map.addLayer({ id: 'polygon-outline', type: 'line', source: 'polygon', paint: { 'line-color': '#16a34a', 'line-width': 2 } })
-        }
-      } catch { /* ok */ }
-    }
-    map.on('styledata', onStyleData)
-    return () => { try { map.off('styledata', onStyleData) } catch { /* ok */ } }
-  }, [ready, coordenadas])
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   function useMyLocation() {
     if (!navigator.geolocation || !onLocationSelect) return
     setGeoLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        const map = mapRef.current
-        if (map) {
-          map.flyTo({ center: [lng, lat], zoom: 15, speed: 1.4 })
-          import('maplibre-gl').then(({ default: maplibregl }) => {
-            if (markerRef.current) markerRef.current.remove()
-            markerRef.current = new maplibregl.Marker({ color: '#16a34a', draggable: true })
-              .setLngLat([lng, lat])
-              .addTo(map)
-            markerRef.current.on('dragend', () => {
-              const lngLat = markerRef.current.getLngLat()
-              onLocationSelect(lngLat.lat, lngLat.lng)
-            })
-          }).catch(() => {/* ok */})
-        }
-        onLocationSelect(lat, lng)
-        setGeoLoading(false)
-      },
-      () => setGeoLoading(false),
-      { enableHighAccuracy: true, timeout: 8000 }
-    )
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords
+      const map = mapRef.current
+      if (map) {
+        map.flyTo([lat, lng], 15)
+        import('leaflet').then(({ default: leaflet }) => {
+          if (markerRef.current) markerRef.current.remove()
+          markerRef.current = leaflet.marker([lat, lng], { icon: pinIcon(leaflet), draggable: true }).addTo(map)
+          markerRef.current.on('dragend', () => {
+            const ll = markerRef.current.getLatLng()
+            onLocationSelect(ll.lat, ll.lng)
+          })
+        }).catch(() => {/* ok */})
+      }
+      onLocationSelect(lat, lng)
+      setGeoLoading(false)
+    }, () => setGeoLoading(false), { enableHighAccuracy: true, timeout: 8000 })
   }
 
   return (
     <div>
       <div style={{ position: 'relative' }}>
-        <div
-          ref={containerRef}
-          style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--borda, #e5e7eb)' }}
-        />
+        <div ref={containerRef} style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--borda, #e5e7eb)' }} />
         {ready && (
           <>
-            <button
-              onClick={() => setSatellite(v => !v)}
-              style={{
-                position: 'absolute', top: 8, left: 8, zIndex: 5,
-                background: satellite ? '#1d4ed8' : 'rgba(255,255,255,0.95)',
-                color: satellite ? '#fff' : '#374151',
-                border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
-                padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-              }}
-            >
+            <button onClick={() => setSatellite(v => !v)} style={{
+              position: 'absolute', top: 8, left: 8, zIndex: 1000,
+              background: satellite ? '#1d4ed8' : 'rgba(255,255,255,0.95)',
+              color: satellite ? '#fff' : '#374151',
+              border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
+              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            }}>
               🛰 {satellite ? 'Mapa' : 'Satélite'}
             </button>
             {!readOnly && onLocationSelect && (
-              <button
-                onClick={useMyLocation}
-                disabled={geoLoading}
-                style={{
-                  position: 'absolute', top: 8, right: 8, zIndex: 5,
-                  background: 'rgba(255,255,255,0.95)', color: '#374151',
-                  border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
-                  padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                  cursor: geoLoading ? 'wait' : 'pointer',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}
-                title="Usar minha localização atual"
-              >
+              <button onClick={useMyLocation} disabled={geoLoading} style={{
+                position: 'absolute', top: 8, right: 8, zIndex: 1000,
+                background: 'rgba(255,255,255,0.95)', color: '#374151',
+                border: '1px solid rgba(0,0,0,0.14)', borderRadius: 8,
+                padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                cursor: geoLoading ? 'wait' : 'pointer',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
                 <Locate size={12} />
                 {geoLoading ? 'Buscando...' : 'Minha localização'}
               </button>
@@ -225,7 +188,7 @@ export function TalhaoMap({
       </div>
       {!readOnly && (
         <p className="flex items-center gap-1 text-xs mt-1.5" style={{ color: 'var(--fg-subtle)' }}>
-          <MapPin size={11} /> Clique no mapa para marcar a localização · arraste o pino para ajustar
+          <MapPin size={11} /> Clique no mapa para marcar · arraste o pino para ajustar
         </p>
       )}
     </div>
