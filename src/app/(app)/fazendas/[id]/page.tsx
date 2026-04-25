@@ -64,6 +64,7 @@ export default function FazendaDetailPage() {
   const [reporForm, setReporForm] = useState({ quantidade: '', motivo: '', data: '' })
   const [reporLoading, setReporLoading] = useState(false)
   const [expandedProduto, setExpandedProduto] = useState<string | null>(null)
+  const [detalheProdutoId, setDetalheProdutoId] = useState<string | null>(null)
 
   // Talhão modal
   const [talhaoModal, setTalhaoModal] = useState(false)
@@ -260,6 +261,14 @@ export default function FazendaDetailPage() {
       Fazenda não encontrada
     </div>
   )
+
+  // Agendado por produto: soma de dose × area_aplicada das planejadas
+  const agendadoPorProduto: Record<string, number> = {}
+  for (const a of aplicacoes) {
+    if (a.tipo === 'planejada' && a.dose && a.area_aplicada) {
+      agendadoPorProduto[a.produto_id] = (agendadoPorProduto[a.produto_id] ?? 0) + a.dose * a.area_aplicada
+    }
+  }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'talhoes',    label: 'Talhões',    icon: <Leaf size={14} />,        count: talhoes.length },
@@ -589,17 +598,29 @@ export default function FazendaDetailPage() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-medium text-sm" style={{ color: 'var(--fg)' }}>{p.nome}</h3>
+                            <button
+                              onClick={() => setDetalheProdutoId(p.id)}
+                              className="font-medium text-sm text-left hover:underline"
+                              style={{ color: 'var(--fg)' }}
+                            >{p.nome}</button>
                             <span className={produtoTipoColor(p.tipo)}>{produtoTipoLabel(p.tipo)}</span>
                           </div>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--fg-muted)' }}>
                             {p.fabricante ? `${p.fabricante}` : ''}{p.prazo_medio_aplicacao ? `${p.fabricante ? ' · ' : ''}Sugestão: reaplicar a cada ${p.prazo_medio_aplicacao} dias` : ''}
                           </p>
-                          {p.quantidade_disponivel != null && (
-                            <p className="text-xs mt-0.5 font-medium" style={{ color: p.quantidade_disponivel <= 5 ? 'hsl(0 72% 45%)' : 'hsl(160 84% 22%)' }}>
-                              Estoque: {p.quantidade_disponivel} {p.unidade_quantidade || 'un'}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                            {p.quantidade_disponivel != null && (
+                              <span className="text-xs font-medium" style={{ color: p.quantidade_disponivel <= 5 ? 'hsl(0 72% 45%)' : 'hsl(160 84% 22%)' }}>
+                                Estoque: {p.quantidade_disponivel} {p.unidade_quantidade || 'un'}
+                              </span>
+                            )}
+                            {(agendadoPorProduto[p.id] ?? 0) > 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                                style={{ background: 'hsl(38 95% 50% / 0.12)', color: 'hsl(38 95% 38%)' }}>
+                                {agendadoPorProduto[p.id].toFixed(1)} {p.unidade_quantidade || 'un'} agendado
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-0.5 items-center">
@@ -750,6 +771,195 @@ export default function FazendaDetailPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ── MODAL DETALHE DO PRODUTO ── */}
+      {(() => {
+        const p = produtos.find(x => x.id === detalheProdutoId)
+        if (!p) return null
+        const prodMovs = movimentacoes.filter(m => m.produto_id === p.id)
+        const prodApls = aplicacoes.filter(a => a.produto_id === p.id)
+        const planejadas = prodApls.filter(a => a.tipo === 'planejada')
+        const realizadas = prodApls.filter(a => a.tipo === 'realizada')
+        const totalAgendado = planejadas.reduce((acc, a) => acc + (a.dose && a.area_aplicada ? a.dose * a.area_aplicada : 0), 0)
+        const totalUsado = prodMovs.filter(m => m.tipo === 'saida').reduce((acc, m) => acc + m.quantidade, 0)
+        const totalEntradas = prodMovs.filter(m => m.tipo === 'entrada').reduce((acc, m) => acc + m.quantidade, 0)
+        const valorTotalEntradas = prodMovs
+          .filter(m => m.tipo === 'entrada')
+          .reduce((acc, m) => acc + m.quantidade * (p.preco_unitario ?? 0), 0)
+        const unidade = p.unidade_quantidade || 'un'
+        const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        return (
+          <Modal
+            open={!!detalheProdutoId}
+            onClose={() => setDetalheProdutoId(null)}
+            title={p.nome}
+            size="lg"
+            footer={
+              <Button variant="outline" onClick={() => setDetalheProdutoId(null)} className="w-full">Fechar</Button>
+            }
+          >
+            <div className="space-y-5">
+              {/* Identificação */}
+              <div>
+                <p className="section-label mb-2">Identificação</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg)' }}>
+                    <span style={{ color: 'var(--fg-subtle)' }}>Tipo</span>
+                    <p className="font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>{produtoTipoLabel(p.tipo)}</p>
+                  </div>
+                  {p.fabricante && (
+                    <div className="rounded-xl p-3" style={{ background: 'var(--bg)' }}>
+                      <span style={{ color: 'var(--fg-subtle)' }}>Fabricante</span>
+                      <p className="font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>{p.fabricante}</p>
+                    </div>
+                  )}
+                  {p.registro_mapa && (
+                    <div className="rounded-xl p-3" style={{ background: 'var(--bg)' }}>
+                      <span style={{ color: 'var(--fg-subtle)' }}>Reg. MAPA</span>
+                      <p className="font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>{p.registro_mapa}</p>
+                    </div>
+                  )}
+                  {p.prazo_medio_aplicacao && (
+                    <div className="rounded-xl p-3" style={{ background: 'var(--bg)' }}>
+                      <span style={{ color: 'var(--fg-subtle)' }}>Sugestão reaplicar</span>
+                      <p className="font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>a cada {p.prazo_medio_aplicacao} dias</p>
+                    </div>
+                  )}
+                  {p.preco_unitario != null && (
+                    <div className="rounded-xl p-3" style={{ background: 'var(--bg)' }}>
+                      <span style={{ color: 'var(--fg-subtle)' }}>Preço unitário</span>
+                      <p className="font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>{fmt(p.preco_unitario)}/{unidade}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Estoque */}
+              <div>
+                <p className="section-label mb-2">Estoque</p>
+                <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                  <div className="rounded-xl p-3" style={{ background: 'hsl(160 84% 22% / 0.08)' }}>
+                    <p className="font-bold text-base" style={{ color: 'hsl(160 84% 22%)' }}>
+                      {p.quantidade_disponivel ?? 0} {unidade}
+                    </p>
+                    <span style={{ color: 'hsl(160 84% 22%)' }}>Disponível</span>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'hsl(38 95% 50% / 0.10)' }}>
+                    <p className="font-bold text-base" style={{ color: 'hsl(38 95% 38%)' }}>
+                      {totalAgendado > 0 ? totalAgendado.toFixed(1) : '—'} {totalAgendado > 0 ? unidade : ''}
+                    </p>
+                    <span style={{ color: 'hsl(38 95% 38%)' }}>Agendado</span>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'hsl(0 72% 45% / 0.08)' }}>
+                    <p className="font-bold text-base" style={{ color: 'hsl(0 72% 45%)' }}>
+                      {totalUsado > 0 ? totalUsado.toFixed(1) : '—'} {totalUsado > 0 ? unidade : ''}
+                    </p>
+                    <span style={{ color: 'hsl(0 72% 45%)' }}>Usado</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aquisições */}
+              {prodMovs.filter(m => m.tipo === 'entrada').length > 0 && (
+                <div>
+                  <p className="section-label mb-2">Aquisições</p>
+                  <div className="rounded-xl p-3 text-xs mb-2 flex justify-between" style={{ background: 'var(--bg)' }}>
+                    <span style={{ color: 'var(--fg-muted)' }}>Total adquirido</span>
+                    <span className="font-semibold" style={{ color: 'var(--fg)' }}>{totalEntradas.toFixed(1)} {unidade}</span>
+                  </div>
+                  {p.preco_unitario != null && valorTotalEntradas > 0 && (
+                    <div className="rounded-xl p-3 text-xs flex justify-between" style={{ background: 'var(--bg)' }}>
+                      <span style={{ color: 'var(--fg-muted)' }}>Valor total investido</span>
+                      <span className="font-semibold" style={{ color: 'var(--fg)' }}>{fmt(valorTotalEntradas)}</span>
+                    </div>
+                  )}
+                  <div className="space-y-1.5 mt-2">
+                    {prodMovs.filter(m => m.tipo === 'entrada').map(m => {
+                      const [y, mo, d] = m.data.split('-').map(Number)
+                      const dateStr = format(new Date(y, mo - 1, d), 'dd/MM/yyyy')
+                      return (
+                        <div key={m.id} className="flex items-center justify-between text-xs px-3 py-2 rounded-xl"
+                          style={{ background: 'var(--bg)', border: '1px solid var(--borda)' }}>
+                          <div>
+                            <span className="font-medium" style={{ color: 'var(--fg)' }}>+{m.quantidade} {unidade}</span>
+                            {m.motivo && <span className="ml-1.5" style={{ color: 'var(--fg-subtle)' }}>· {m.motivo}</span>}
+                          </div>
+                          <div className="text-right" style={{ color: 'var(--fg-subtle)' }}>
+                            <div>{dateStr}</div>
+                            {p.preco_unitario != null && (
+                              <div className="font-medium" style={{ color: 'var(--fg-muted)' }}>{fmt(m.quantidade * p.preco_unitario)}</div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Aplicações agendadas */}
+              {planejadas.length > 0 && (
+                <div>
+                  <p className="section-label mb-2">Aplicações agendadas ({planejadas.length})</p>
+                  <div className="space-y-1.5">
+                    {planejadas.map(a => {
+                      const t = talhoes.find(t => t.id === a.talhao_id)
+                      const [y, mo, d] = a.data_aplicacao.split('-').map(Number)
+                      return (
+                        <div key={a.id} className="flex items-center justify-between text-xs px-3 py-2 rounded-xl"
+                          style={{ background: 'hsl(38 95% 50% / 0.07)', border: '1px solid hsl(38 95% 50% / 0.2)' }}>
+                          <div>
+                            <span className="font-medium" style={{ color: 'var(--fg)' }}>{t?.nome ?? 'Talhão'}</span>
+                            {a.dose && a.area_aplicada && (
+                              <span className="ml-1.5" style={{ color: 'var(--fg-subtle)' }}>
+                                · {a.dose} {a.unidade_dose || unidade}/ha × {a.area_aplicada} ha = {(a.dose * a.area_aplicada).toFixed(1)} {unidade}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ color: 'hsl(38 95% 38%)' }}>{format(new Date(y, mo - 1, d), 'dd/MM/yyyy')}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Aplicações realizadas */}
+              {realizadas.length > 0 && (
+                <div>
+                  <p className="section-label mb-2">Aplicações realizadas ({realizadas.length})</p>
+                  <div className="space-y-1.5">
+                    {realizadas.map(a => {
+                      const t = talhoes.find(t => t.id === a.talhao_id)
+                      const [y, mo, d] = a.data_aplicacao.split('-').map(Number)
+                      return (
+                        <div key={a.id} className="flex items-center justify-between text-xs px-3 py-2 rounded-xl"
+                          style={{ background: 'hsl(160 84% 22% / 0.06)', border: '1px solid hsl(160 84% 22% / 0.15)' }}>
+                          <div>
+                            <span className="font-medium" style={{ color: 'var(--fg)' }}>{t?.nome ?? 'Talhão'}</span>
+                            {a.dose && a.area_aplicada && (
+                              <span className="ml-1.5" style={{ color: 'var(--fg-subtle)' }}>
+                                · {a.dose} {a.unidade_dose || unidade}/ha × {a.area_aplicada} ha
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ color: 'hsl(160 84% 22%)' }}>{format(new Date(y, mo - 1, d), 'dd/MM/yyyy')}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {prodApls.length === 0 && prodMovs.length === 0 && (
+                <p className="text-xs text-center py-4" style={{ color: 'var(--fg-subtle)' }}>
+                  Nenhuma movimentação ou aplicação registrada ainda.
+                </p>
+              )}
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* ── MODAL REPOR ESTOQUE ── */}
       <Modal

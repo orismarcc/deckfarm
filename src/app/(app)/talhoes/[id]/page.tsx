@@ -591,9 +591,10 @@ export default function TalhaoPage() {
 
   // ── Marcar aplicação como realizada — requer data de quando ocorreu ────────
   async function handleConfirmarRealizada(aplicacaoId: string, dataRealizada: string) {
-    if (!dataRealizada) return
+    if (!dataRealizada || !user) return
     const db = getDB()
     const now = new Date().toISOString()
+    const aplicacao = await db.aplicacoes.get(aplicacaoId)
     await db.aplicacoes.update(aplicacaoId, {
       tipo: 'realizada',
       data_aplicacao: dataRealizada,
@@ -604,8 +605,35 @@ export default function TalhaoPage() {
     const updated = await db.aplicacoes.get(aplicacaoId)
     if (updated) {
       await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
-      processSyncQueue()
     }
+    // Subtrair estoque ao confirmar realizada
+    if (aplicacao && talhao) {
+      const prod = await db.produtos.get(aplicacao.produto_id)
+      if (prod && prod.quantidade_disponivel != null && aplicacao.dose && aplicacao.area_aplicada) {
+        const quantidadeUsada = aplicacao.dose * aplicacao.area_aplicada
+        const qtdAnterior = prod.quantidade_disponivel
+        const qtdNova = Math.max(0, qtdAnterior - quantidadeUsada)
+        await db.produtos.update(prod.id, { quantidade_disponivel: qtdNova, updatedAt: now })
+        const updatedProd = { ...prod, quantidade_disponivel: qtdNova, updatedAt: now }
+        await enqueueSync('produto', 'upsert', updatedProd as unknown as Record<string, unknown>)
+        const mov = {
+          id: gerarId(),
+          produto_id: prod.id,
+          fazenda_id: talhao.fazenda_id,
+          usuario_id: user.id,
+          tipo: 'saida' as const,
+          quantidade: quantidadeUsada,
+          quantidade_anterior: qtdAnterior,
+          quantidade_nova: qtdNova,
+          motivo: `Aplicação realizada em ${dataRealizada}`,
+          data: dataRealizada,
+          createdAt: now,
+        }
+        await db.estoqueMovimentacoes.add(mov)
+        await enqueueSync('estoqueMovimentacao', 'upsert', mov as unknown as Record<string, unknown>)
+      }
+    }
+    processSyncQueue()
     setMarcarRealizadaId(null)
     setMarcarRealizadaDate(TODAY)
     await loadData()
