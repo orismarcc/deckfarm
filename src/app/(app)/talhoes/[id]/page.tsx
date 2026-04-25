@@ -165,6 +165,9 @@ export default function TalhaoPage() {
 
   const [editingAplicacao, setEditingAplicacao] = useState<Aplicacao | null>(null)
   const [deletingApId, setDeletingApId] = useState<string | null>(null)
+  // "Marcar como Realizada" inline flow: click → date input appears → confirm
+  const [marcarRealizadaId, setMarcarRealizadaId] = useState<string | null>(null)
+  const [marcarRealizadaDate, setMarcarRealizadaDate] = useState(TODAY)
 
   // UI state
   const [showPlanned, setShowPlanned] = useState(true)
@@ -583,16 +586,25 @@ export default function TalhaoPage() {
     } finally { setAnotacaoLoading(false) }
   }
 
-  // ── Marcar aplicação como realizada (sem abrir modal) ────────────────────
-  async function handleMarcarRealizada(aplicacaoId: string) {
+  // ── Marcar aplicação como realizada — requer data de quando ocorreu ────────
+  async function handleConfirmarRealizada(aplicacaoId: string, dataRealizada: string) {
+    if (!dataRealizada) return
     const db = getDB()
     const now = new Date().toISOString()
-    await db.aplicacoes.update(aplicacaoId, { tipo: 'realizada', updatedAt: now, _syncStatus: 'pending' })
+    await db.aplicacoes.update(aplicacaoId, {
+      tipo: 'realizada',
+      data_aplicacao: dataRealizada,
+      status: 'dentro_do_prazo',
+      updatedAt: now,
+      _syncStatus: 'pending',
+    })
     const updated = await db.aplicacoes.get(aplicacaoId)
     if (updated) {
       await enqueueSync('aplicacao', 'upsert', updated as unknown as Record<string, unknown>)
       processSyncQueue()
     }
+    setMarcarRealizadaId(null)
+    setMarcarRealizadaDate(TODAY)
     await loadData()
   }
 
@@ -995,7 +1007,7 @@ export default function TalhaoPage() {
                         <span>{(() => { const [y,m,d] = a.data_aplicacao.split('-').map(Number); return format(new Date(y,m-1,d), 'dd/MM/yyyy') })()}</span>
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                           style={{ color: sc.color, background: sc.bg }}>
-                          {a.status === 'atrasado' ? 'Atrasado' : a.status === 'hoje' ? 'Hoje' : a.status === 'proximo' ? 'Próximo' : 'No prazo'}
+                          {a.status === 'atrasado' ? 'Atrasada' : a.status === 'hoje' ? 'Hoje' : a.status === 'proximo' ? 'Próxima' : 'Agendada'}
                         </span>
                       </div>
                     </div>
@@ -1017,6 +1029,31 @@ export default function TalhaoPage() {
                             ✕
                           </button>
                         </>
+                      ) : marcarRealizadaId === a.id ? (
+                        /* ── Inline: confirmar data de realização ── */
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="date"
+                            value={marcarRealizadaDate}
+                            onChange={e => setMarcarRealizadaDate(e.target.value)}
+                            className="text-[11px] px-2 py-1 rounded-lg border"
+                            style={{ borderColor: 'var(--borda)', background: 'var(--bg)', color: 'var(--fg)', outline: 'none' }}
+                          />
+                          <button
+                            onClick={() => handleConfirmarRealizada(a.id, marcarRealizadaDate)}
+                            className="text-[11px] font-bold px-2.5 py-1 rounded-lg"
+                            style={{ background: 'hsl(160 84% 22%)', color: 'white' }}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={() => setMarcarRealizadaId(null)}
+                            className="text-[11px] font-bold px-2 py-1 rounded-lg"
+                            style={{ background: 'var(--bg-dark)', color: 'var(--fg-muted)' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       ) : (
                         <>
                           <button
@@ -1039,22 +1076,14 @@ export default function TalhaoPage() {
                           >
                             <Pencil size={14} />
                           </button>
-                          {/* Quick mark as done — user confirms application was performed */}
                           <button
-                            onClick={() => handleMarcarRealizada(a.id)}
+                            onClick={() => { setMarcarRealizadaId(a.id); setMarcarRealizadaDate(TODAY) }}
                             className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all"
                             style={{ borderColor: 'hsl(160 84% 22% / 0.4)', color: 'hsl(160 84% 22%)', background: 'hsl(160 84% 22% / 0.06)' }}
-                            title="Marcar como feita"
+                            title="Marcar como realizada"
                           >
                             <CheckCircle2 size={12} /> Feita
                           </button>
-                          <Button
-                            size="sm"
-                            onClick={() => openAplicacaoModal(a)}
-                            style={{ background: 'hsl(160 84% 22%)', color: 'white', fontSize: '11px', padding: '0.35rem 0.75rem' }}
-                          >
-                            + Detalhes
-                          </Button>
                         </>
                       )}
                     </div>
