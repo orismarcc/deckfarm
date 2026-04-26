@@ -1,4 +1,5 @@
 'use client'
+import 'leaflet/dist/leaflet.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Talhao, Aplicacao } from '@/types'
 import { culturaLabel, culturaIcon } from '@/lib/utils'
@@ -229,6 +230,9 @@ export default function TalhoesMap({
       renderFields(leaflet, map)
 
       mapRef.current = map
+      // Force re-render after container is fully painted (fixes blank map in modals/tabs)
+      setTimeout(() => { if (!cancelled && map) map.invalidateSize() }, 0)
+      setTimeout(() => { if (!cancelled && map) map.invalidateSize() }, 300)
       if (!cancelled) setReady(true)
     }
 

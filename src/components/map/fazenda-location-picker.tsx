@@ -1,4 +1,5 @@
 'use client'
+import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef, useState } from 'react'
 import { Locate, MapPin } from 'lucide-react'
 
@@ -112,6 +113,8 @@ export function FazendaLocationPicker({
       })
 
       mapRef.current = map
+      setTimeout(() => { if (!cancelled && map) map.invalidateSize() }, 0)
+      setTimeout(() => { if (!cancelled && map) map.invalidateSize() }, 300)
       if (!cancelled) setReady(true)
     }
 
