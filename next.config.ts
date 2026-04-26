@@ -35,13 +35,11 @@ const nextConfig: NextConfig = {
               // for the dev runtime. Both are standard constraints for Next.js apps.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
-              // Allow images from Supabase storage + local data URIs (photos taken in-app)
-              `img-src 'self' data: blob: https://${supabaseHost}`,
+              // Supabase storage, OSM tiles, Esri satellite tiles, local data URIs
+              `img-src 'self' data: blob: https://${supabaseHost} https://*.tile.openstreetmap.org https://server.arcgisonline.com`,
               "font-src 'self' data:",
-              // Open-Meteo for weather data; Supabase for data sync
-              `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://api.open-meteo.com https://geocoding-api.open-meteo.com`,
-              // Leaflet tiles (OpenStreetMap) for maps
-              "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.supabase.co",
+              // Open-Meteo for weather; Supabase for data sync; Nominatim for geocoding
+              `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org`,
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
