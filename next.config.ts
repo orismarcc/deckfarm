@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               // Supabase storage, OSM tiles, Esri satellite tiles, local data URIs
-              `img-src 'self' data: blob: https://${supabaseHost} https://*.tile.openstreetmap.org https://server.arcgisonline.com`,
+              `img-src 'self' data: blob: https://${supabaseHost} https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://server.arcgisonline.com`,
               "font-src 'self' data:",
               // Open-Meteo for weather; Supabase for data sync; Nominatim for geocoding
               `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org`,
