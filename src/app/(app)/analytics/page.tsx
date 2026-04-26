@@ -12,9 +12,10 @@ import { TypePieChart } from '@/components/analytics/type-pie-chart'
 import { CropPieChart } from '@/components/analytics/crop-pie-chart'
 import { EventTimeline } from '@/components/analytics/event-timeline'
 import { TalhaoAnalyticsDrilldown } from '@/components/analytics/talhao-drilldown'
+import { SafraComparativo } from '@/components/analytics/safra-comparativo'
 import { worstSeveridade } from '@/components/ui/severidade-badge'
-import type { Fazenda, Talhao, Produto, Aplicacao, SemeaduraEtapa, MonitoramentoPraga, CulturaType } from '@/types'
-import { FlaskConical, Leaf, Bug, DollarSign, Sprout, Eye, BarChart3 } from 'lucide-react'
+import type { Fazenda, Talhao, Produto, Aplicacao, SemeaduraEtapa, MonitoramentoPraga, Safra } from '@/types'
+import { FlaskConical, Leaf, Bug, DollarSign, Eye, BarChart3, GitCompareArrows } from 'lucide-react'
 
 export default function AnalyticsPage() {
   const { user } = useAuthStore()
@@ -26,19 +27,21 @@ export default function AnalyticsPage() {
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
   const [etapas,     setEtapas]     = useState<SemeaduraEtapa[]>([])
   const [monitoramentos, setMonitoramentos] = useState<MonitoramentoPraga[]>([])
+  const [safras,     setSafras]     = useState<Safra[]>([])
 
   const { fazendaId, talhaoId, cultura, period, customFrom, customTo } = useAnalyticsStore()
 
   const loadData = useCallback(async () => {
     if (!user) return
     const db = getDB()
-    const [fazs, tals, prods, apps, ets, mons] = await Promise.all([
+    const [fazs, tals, prods, apps, ets, mons, safs] = await Promise.all([
       db.fazendas.where('usuario_id').equals(user.id).toArray(),
       db.talhoes.toArray(),
       db.produtos.toArray(),
       db.aplicacoes.filter(a => !a.deleted_at).toArray(),
       db.semeaduraEtapas.toArray(),
       db.monitoramentos.toArray(),
+      db.safras.toArray(),
     ])
     setFazendas(fazs)
     setTalhoes(tals)
@@ -46,6 +49,7 @@ export default function AnalyticsPage() {
     setAplicacoes(apps)
     setEtapas(ets)
     setMonitoramentos(mons)
+    setSafras(safs)
   }, [user])
 
   useEffect(() => { loadData() }, [loadData])
@@ -188,6 +192,22 @@ export default function AnalyticsPage() {
           produtos={produtos}
           from={from}
           to={to}
+        />
+      </div>
+
+      {/* Safra Comparison */}
+      <div className="animate-enter animate-enter-7 mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <GitCompareArrows size={15} style={{ color: 'hsl(160 84% 22%)' }} />
+          <p className="section-label" style={{ margin: 0 }}>Comparativo entre safras</p>
+        </div>
+        <SafraComparativo
+          safras={safras}
+          aplicacoes={aplicacoes}
+          monitoramentos={monitoramentos}
+          produtos={produtos}
+          talhoes={talhoes}
+          fazendaId={fazendaId}
         />
       </div>
     </div>

@@ -28,6 +28,7 @@ import { ptBR } from 'date-fns/locale'
 import { MonitoramentoTimeline } from '@/components/monitoramento/monitoramento-timeline'
 import { MonitoramentoModal } from '@/components/monitoramento/monitoramento-modal'
 import { TendenciaAlerta } from '@/components/monitoramento/monitoramento-alertas'
+import { MonitoramentoSugestao } from '@/components/monitoramento/monitoramento-sugestao'
 import { SeveridadeDot, worstSeveridade } from '@/components/ui/severidade-badge'
 
 // ── Crop phases (approximate %) ─────────────────────────────────────────────
@@ -733,6 +734,28 @@ export default function TalhaoPage() {
 
   const worstSev = worstSeveridade(monitoramentos.map(m => m.severidade))
 
+  /** Abre o modal de aplicação pré-preenchido com a sugestão do monitoramento */
+  function agendarPorSugestao(prefill: Partial<Aplicacao>) {
+    setEditingAplicacao(null)
+    setAplicacaoBase(null)
+    setModalMode('produto')
+    setSelectedRecomendacaoId('')
+    setForm({
+      produto_id:     prefill.produto_id     ?? '',
+      data_aplicacao: prefill.data_aplicacao ?? TODAY,
+      dose:           prefill.dose?.toString() ?? '',
+      unidade_dose:   prefill.unidade_dose   ?? 'L/ha',
+      area_aplicada:  prefill.area_aplicada?.toString() ?? '',
+      observacoes:    prefill.observacoes    ?? '',
+      clima:          '',
+      temperatura:    '',
+      tipo:           'planejada',
+    })
+    setFotos([])
+    setActiveTab('info')   // volta à aba de informações para mostrar o modal
+    setModalOpen(true)
+  }
+
   return (
     <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
       {/* Header */}
@@ -798,6 +821,14 @@ export default function TalhaoPage() {
       {/* ══════════════════════════════ MONITORAMENTO TAB ══════════════════ */}
       {activeTab === 'monitoramento' && (
         <div className="animate-enter animate-enter-3">
+          {/* Sugestões de aplicação (severo/crítico) */}
+          <MonitoramentoSugestao
+            monitoramentos={monitoramentos}
+            produtos={produtos}
+            cultura={talhao.cultura as CulturaType}
+            talhaoArea={talhao.area}
+            onAgendar={agendarPorSugestao}
+          />
           {/* Tendência alert */}
           {monitoramentos.length > 0 && (
             <div className="mb-4">

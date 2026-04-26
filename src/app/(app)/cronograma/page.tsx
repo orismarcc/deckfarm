@@ -384,22 +384,18 @@ export default function CronogramaPage() {
           {/* Legend */}
           <div className="flex items-center gap-4 px-5 py-3 flex-wrap" style={{ borderTop: '1px solid var(--borda)' }}>
             {([
-              { label: 'Plantio',   key: 'plantio' },
-              { label: 'Semeadura', key: 'semeadura' },
-              { label: 'Aplicação', key: 'aplicacao' },
-              { label: 'Colheita',  key: 'colheita' },
-              { label: 'Atrasado',  key: 'atrasado' },
-            ] as const).map(({ label, key }) => {
-              const isStatus = key === 'atrasado'
-              const bg     = isStatus ? statusColor[key] : eventTypeColor[key as EventType].bg
-              const border = isStatus ? statusTextColor[key] : eventTypeColor[key as EventType].text
-              return (
-                <span key={key} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-muted)' }}>
-                  <span className="w-3 h-3 rounded" style={{ background: bg, border: `1px solid ${border}` }} />
-                  {label}
-                </span>
-              )
-            })}
+              { label: 'Plantio',   bg: eventTypeColor.plantio.bg,   border: eventTypeColor.plantio.text },
+              { label: 'Semeadura', bg: eventTypeColor.semeadura.bg,  border: eventTypeColor.semeadura.text },
+              { label: 'Colheita',  bg: eventTypeColor.colheita.bg,   border: eventTypeColor.colheita.text },
+              { label: 'Realizada', bg: 'hsl(160 84% 22% / 0.1)',     border: 'hsl(160 84% 22%)' },
+              { label: 'Agendada',  bg: statusColor.dentro_do_prazo,  border: statusTextColor.dentro_do_prazo },
+              { label: 'Atrasada',  bg: statusColor.atrasado,         border: statusTextColor.atrasado },
+            ]).map(({ label, bg, border }) => (
+              <span key={label} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-muted)' }}>
+                <span className="w-3 h-3 rounded" style={{ background: bg, border: `1px solid ${border}` }} />
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       ) : (
