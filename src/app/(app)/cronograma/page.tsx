@@ -54,10 +54,17 @@ const statusTextColor: Record<string, string> = {
   dentro_do_prazo:'var(--verde-700)',
 }
 const eventTypeColor: Record<EventType, { bg: string; text: string }> = {
-  aplicacao: { bg: 'hsl(270 60% 96%)', text: 'hsl(270 60% 45%)' },
-  plantio:   { bg: 'hsl(130 55% 30% / 0.12)', text: 'hsl(130 55% 25%)' },
-  colheita:  { bg: 'hsl(38 90% 93%)', text: 'hsl(32 90% 35%)' },
-  semeadura: { bg: 'hsl(210 100% 95%)', text: 'hsl(210 100% 35%)' },
+  aplicacao: { bg: 'hsl(220 10% 90%)', text: 'hsl(220 10% 40%)' }, // cinza (agendada fallback)
+  plantio:   { bg: 'hsl(25 55% 35% / 0.14)', text: 'hsl(25 55% 28%)' }, // castanho
+  colheita:  { bg: 'hsl(280 55% 55% / 0.14)', text: 'hsl(280 55% 40%)' }, // lilás
+  semeadura: { bg: 'hsl(210 100% 95%)', text: 'hsl(210 100% 35%)' }, // mantém azul
+}
+
+// Aplicação: verde=realizada, vermelho=atrasada, cinza=agendada (qualquer outro status)
+const APLICACAO_COLOR = {
+  realizada: { bg: 'hsl(160 84% 22% / 0.10)', text: 'hsl(160 84% 22%)' },
+  atrasada:  { bg: statusColor.atrasado,        text: statusTextColor.atrasado },
+  agendada:  { bg: 'hsl(220 10% 90%)',           text: 'hsl(220 10% 40%)' },
 }
 const eventTypeIcon: Record<EventType, React.ReactNode> = {
   aplicacao: <FlaskConical size={11} />,
@@ -360,9 +367,9 @@ export default function CronogramaPage() {
                   <div className="space-y-0.5">
                     {dayEvs.slice(0, 3).map(ev => {
                       const tc = ev.type === 'aplicacao'
-                        ? ev.aplicacaoTipo === 'realizada'
-                          ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
-                          : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
+                        ? ev.aplicacaoTipo === 'realizada' ? APLICACAO_COLOR.realizada
+                          : ev.status === 'atrasado' ? APLICACAO_COLOR.atrasada
+                          : APLICACAO_COLOR.agendada
                         : eventTypeColor[ev.type]
                       return (
                         <div key={ev.id} className="text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-0.5"
@@ -384,12 +391,12 @@ export default function CronogramaPage() {
           {/* Legend */}
           <div className="flex items-center gap-4 px-5 py-3 flex-wrap" style={{ borderTop: '1px solid var(--borda)' }}>
             {([
-              { label: 'Plantio',   bg: eventTypeColor.plantio.bg,   border: eventTypeColor.plantio.text },
-              { label: 'Semeadura', bg: eventTypeColor.semeadura.bg,  border: eventTypeColor.semeadura.text },
-              { label: 'Colheita',  bg: eventTypeColor.colheita.bg,   border: eventTypeColor.colheita.text },
-              { label: 'Realizada', bg: 'hsl(160 84% 22% / 0.1)',     border: 'hsl(160 84% 22%)' },
-              { label: 'Agendada',  bg: statusColor.dentro_do_prazo,  border: statusTextColor.dentro_do_prazo },
-              { label: 'Atrasada',  bg: statusColor.atrasado,         border: statusTextColor.atrasado },
+              { label: 'Plantio',   bg: eventTypeColor.plantio.bg,      border: eventTypeColor.plantio.text },
+              { label: 'Semeadura', bg: eventTypeColor.semeadura.bg,     border: eventTypeColor.semeadura.text },
+              { label: 'Colheita',  bg: eventTypeColor.colheita.bg,      border: eventTypeColor.colheita.text },
+              { label: 'Realizada', bg: APLICACAO_COLOR.realizada.bg,    border: APLICACAO_COLOR.realizada.text },
+              { label: 'Agendada',  bg: APLICACAO_COLOR.agendada.bg,     border: APLICACAO_COLOR.agendada.text },
+              { label: 'Atrasada',  bg: APLICACAO_COLOR.atrasada.bg,     border: APLICACAO_COLOR.atrasada.text },
             ]).map(({ label, bg, border }) => (
               <span key={label} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-muted)' }}>
                 <span className="w-3 h-3 rounded" style={{ background: bg, border: `1px solid ${border}` }} />
@@ -413,11 +420,10 @@ export default function CronogramaPage() {
               <div className="absolute top-0 bottom-0 w-px" style={{ left: '3.5rem', background: 'var(--borda)' }} />
               <div className="space-y-3">
                 {timeline.map((ev, i) => {
-                  // Realizadas always show green; planejadas use status color
                   const tc = ev.type === 'aplicacao'
-                    ? ev.aplicacaoTipo === 'realizada'
-                      ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
-                      : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
+                    ? ev.aplicacaoTipo === 'realizada' ? APLICACAO_COLOR.realizada
+                      : ev.status === 'atrasado' ? APLICACAO_COLOR.atrasada
+                      : APLICACAO_COLOR.agendada
                     : eventTypeColor[ev.type]
                   const evDate = localDate(ev.date)
                   const hoje = new Date(); hoje.setHours(0,0,0,0)
@@ -518,9 +524,9 @@ export default function CronogramaPage() {
         <div className="space-y-2">
           {dayModalEvents.map(ev => {
             const tc = ev.type === 'aplicacao'
-              ? ev.aplicacaoTipo === 'realizada'
-                ? { bg: 'hsl(160 84% 22% / 0.1)', text: 'hsl(160 84% 22%)' }
-                : { bg: statusColor[ev.status || ''] || 'var(--bg-dark)', text: statusTextColor[ev.status || ''] || 'var(--fg-muted)' }
+              ? ev.aplicacaoTipo === 'realizada' ? APLICACAO_COLOR.realizada
+                : ev.status === 'atrasado' ? APLICACAO_COLOR.atrasada
+                : APLICACAO_COLOR.agendada
               : eventTypeColor[ev.type]
             return (
               <div key={ev.id} className="flex items-start gap-3 p-3 rounded-xl"

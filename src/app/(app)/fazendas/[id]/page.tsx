@@ -165,8 +165,10 @@ export default function FazendaDetailPage() {
   }
 
   async function deleteTalhao(t: Talhao) {
-    if (!confirm(`Excluir talhão "${t.nome}"?`)) return
+    if (!confirm(`Excluir talhão "${t.nome}"? Esta ação não pode ser desfeita.`)) return
     await getDB().talhoes.delete(t.id)
+    await enqueueSync('talhao', 'delete', { id: t.id })
+    processSyncQueue()
     await loadData()
   }
 
