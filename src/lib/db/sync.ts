@@ -1,5 +1,5 @@
 import { getDB } from './index'
-import type { SyncQueueItem, Fazenda, Talhao, Produto, Aplicacao, SemeaduraEtapa } from '@/types'
+import type { SyncQueueItem, Fazenda, Talhao, Produto, Aplicacao, SemeaduraEtapa, MonitoramentoPraga } from '@/types'
 import { useAppStore } from '@/store/app'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -48,20 +48,22 @@ export async function pullFromServer(token: string): Promise<void> {
 
   const db = getDB()
 
-  const [fazendas, talhoes, produtos, aplicacoes, etapas] = await Promise.all([
+  const [fazendas, talhoes, produtos, aplicacoes, etapas, monitoramentos] = await Promise.all([
     fetchEntity<Record<string, unknown>>('/api/fazendas',           token, 'fazendas'),
     fetchEntity<Record<string, unknown>>('/api/talhoes',            token, 'talhoes'),
     fetchEntity<Record<string, unknown>>('/api/produtos',           token, 'produtos'),
     fetchEntity<Record<string, unknown>>('/api/aplicacoes',         token, 'aplicacoes'),
     fetchEntity<Record<string, unknown>>('/api/semeadura-etapas',   token, 'semeadura_etapas'),
+    fetchEntity<Record<string, unknown>>('/api/monitoramentos',     token, 'monitoramentos'),
   ])
 
   // Write to Dexie (idempotent — safe to run on every startup)
-  const cleanFazendas    = fazendas.map(stripJoins)  as unknown as Fazenda[]
-  const cleanTalhoes     = talhoes.map(stripJoins)   as unknown as Talhao[]
-  const cleanProdutos    = produtos.map(stripJoins)  as unknown as Produto[]
-  const cleanAplicacoes  = aplicacoes.map(stripJoins) as unknown as Aplicacao[]
-  const cleanEtapas      = etapas.map(stripJoins) as unknown as SemeaduraEtapa[]
+  const cleanFazendas        = fazendas.map(stripJoins)       as unknown as Fazenda[]
+  const cleanTalhoes         = talhoes.map(stripJoins)        as unknown as Talhao[]
+  const cleanProdutos        = produtos.map(stripJoins)       as unknown as Produto[]
+  const cleanAplicacoes      = aplicacoes.map(stripJoins)     as unknown as Aplicacao[]
+  const cleanEtapas          = etapas.map(stripJoins)         as unknown as SemeaduraEtapa[]
+  const cleanMonitoramentos  = monitoramentos.map(stripJoins) as unknown as MonitoramentoPraga[]
 
   // Filter out soft-deleted aplicações coming from server
   const activeAplicacoes = cleanAplicacoes.filter(a => !(a as unknown as Record<string,unknown>).deleted_at)
@@ -75,7 +77,8 @@ export async function pullFromServer(token: string): Promise<void> {
     .filter(a => (a as unknown as Record<string,unknown>).deleted_at)
     .map(a => a.id)
   if (deletedIds.length) await db.aplicacoes.bulkDelete(deletedIds)
-  if (cleanEtapas.length)      await db.semeaduraEtapas.bulkPut(cleanEtapas)
+  if (cleanEtapas.length)          await db.semeaduraEtapas.bulkPut(cleanEtapas)
+  if (cleanMonitoramentos.length)  await db.monitoramentos.bulkPut(cleanMonitoramentos)
 
   // ── Update Zustand directly so all subscribed pages re-render immediately ──
   const store = useAppStore.getState()
@@ -144,6 +147,7 @@ const ENTITY_TO_DEXIE: Record<string, string> = {
   semeadura_etapa:      'semeaduraEtapas',
   estoqueMovimentacao:  'estoqueMovimentacoes',
   recomendacao:         'recomendacoes',
+  monitoramento:        'monitoramentos',
 }
 
 export async function processSyncQueue(): Promise<void> {

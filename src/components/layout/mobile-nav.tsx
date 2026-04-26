@@ -1,15 +1,15 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, BookOpen } from 'lucide-react'
+import { LayoutDashboard, MapPin, FlaskConical, CalendarDays, BarChart3 } from 'lucide-react'
 
 // Bottom nav — alertas disponível no botão de sino no header superior
 const nav = [
-  { href: '/dashboard',       icon: LayoutDashboard, label: 'Início'   },
-  { href: '/fazendas',        icon: MapPin,           label: 'Fazendas' },
-  { href: '/aplicacoes',      icon: FlaskConical,     label: 'Aplicar'  },
-  { href: '/recomendacoes',   icon: BookOpen,         label: 'Recomen.' },
-  { href: '/cronograma',      icon: CalendarDays,     label: 'Agenda'   },
+  { href: '/dashboard',  icon: LayoutDashboard, label: 'Início'    },
+  { href: '/fazendas',   icon: MapPin,           label: 'Fazendas'  },
+  { href: '/aplicacoes', icon: FlaskConical,     label: 'Aplicar'   },
+  { href: '/cronograma', icon: CalendarDays,     label: 'Agenda'    },
+  { href: '/analytics',  icon: BarChart3,        label: 'Analytics' },
 ]
 
 export function MobileNav() {

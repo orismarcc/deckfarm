@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
-import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout, Settings, ClipboardList, Droplets } from 'lucide-react'
+import { LayoutDashboard, MapPin, Leaf, FlaskConical, CalendarDays, Bell, LogOut, Sprout, Settings, ClipboardList, Droplets, BarChart3 } from 'lucide-react'
 
 const nav = [
   { href: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',      sub: 'Visão geral' },
@@ -15,6 +15,7 @@ const nav = [
   { href: '/recomendacoes',  icon: ClipboardList,    label: 'Recomendações',  sub: 'Técnico agrônomo' },
   { href: '/calda',          icon: Droplets,         label: 'Calda',          sub: 'Cálculo de volume' },
   { href: '/alertas',        icon: Bell,             label: 'Alertas',        sub: 'Notificações' },
+  { href: '/analytics',      icon: BarChart3,        label: 'Analytics',      sub: 'Relatórios' },
 ]
 
 export function Sidebar() {

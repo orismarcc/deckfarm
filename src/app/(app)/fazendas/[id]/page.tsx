@@ -13,8 +13,17 @@ import { WeatherWidget } from '@/components/weather/weather-widget'
 import { MembrosSection } from '@/components/fazenda/membros-section'
 import { gerarId, culturaLabel, culturaIcon, produtoTipoLabel, produtoTipoColor, formatDate } from '@/lib/utils'
 import { enqueueSync, processSyncQueue } from '@/lib/db/sync'
-import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo, EstoqueMovimentacao } from '@/types'
-import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud, History, TrendingUp, ArrowUp, ArrowDown, ArrowLeftRight, Map, DollarSign, Receipt } from 'lucide-react'
+import type { Fazenda, Talhao, Produto, Aplicacao, CulturaType, ProdutoTipo, EstoqueMovimentacao, MonitoramentoPraga, SemeaduraEtapa } from '@/types'
+import { Plus, Leaf, FlaskConical, Trash2, Edit3, ArrowLeft, Package, ChevronRight, FileText, Users, MapPin as MapPinIcon, Cloud, History, TrendingUp, ArrowUp, ArrowDown, ArrowLeftRight, Map, DollarSign, Receipt, Bug, BarChart3 } from 'lucide-react'
+import { MonitoramentoHeatmap } from '@/components/monitoramento/monitoramento-heatmap'
+import { MonitoramentoAlertas } from '@/components/monitoramento/monitoramento-alertas'
+import { MonitoramentoTimeline } from '@/components/monitoramento/monitoramento-timeline'
+import { MonitoramentoModal } from '@/components/monitoramento/monitoramento-modal'
+import { KpiCard } from '@/components/analytics/kpi-card'
+import { TrendLineChart } from '@/components/analytics/trend-line-chart'
+import { TypePieChart } from '@/components/analytics/type-pie-chart'
+import { resolvePeriodDates } from '@/store/analytics'
+import { worstSeveridade } from '@/components/ui/severidade-badge'
 import { format } from 'date-fns'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -47,7 +56,7 @@ const tiposProduto: { value: ProdutoTipo; label: string }[] = [
   { value: 'inseticida', label: 'Inseticida' },
 ]
 
-type Tab = 'talhoes' | 'produtos' | 'mapa' | 'financeiro' | 'equipe' | 'clima'
+type Tab = 'talhoes' | 'produtos' | 'mapa' | 'financeiro' | 'equipe' | 'clima' | 'monitoramento' | 'analytics'
 
 export default function FazendaDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -59,6 +68,10 @@ export default function FazendaDetailPage() {
   const [tab, setTab] = useState<Tab>('talhoes')
   const [gerandoPDF, setGerandoPDF] = useState(false)
   const [movimentacoes, setMovimentacoes] = useState<EstoqueMovimentacao[]>([])
+  const [monitoramentos, setMonitoramentos] = useState<MonitoramentoPraga[]>([])
+  const [semeaduraEtapas, setSemeaduraEtapas] = useState<SemeaduraEtapa[]>([])
+  const [monitoramentoModal, setMonitoramentoModal] = useState(false)
+  const [editingMonitoramento, setEditingMonitoramento] = useState<MonitoramentoPraga | null>(null)
   const [reporModal, setReporModal] = useState(false)
   const [reporProduto, setReporProduto] = useState<Produto | null>(null)
   const [reporForm, setReporForm] = useState({ quantidade: '', motivo: '', data: '' })
@@ -98,6 +111,12 @@ export default function FazendaDetailPage() {
     }
     const movs = await db.estoqueMovimentacoes.where('fazenda_id').equals(id).reverse().sortBy('data')
     setMovimentacoes(movs)
+    const mons = await db.monitoramentos.where('fazenda_id').equals(id).reverse().sortBy('data')
+    setMonitoramentos(mons)
+    if (tals.length > 0) {
+      const etps = await db.semeaduraEtapas.where('fazenda_id').equals(id).toArray()
+      setSemeaduraEtapas(etps)
+    }
   }, [id])
 
   useEffect(() => { loadData() }, [loadData])
@@ -271,13 +290,52 @@ export default function FazendaDetailPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'talhoes',    label: 'Talhões',    icon: <Leaf size={14} />,        count: talhoes.length },
-    { key: 'mapa',       label: 'Mapa',       icon: <Map size={14} /> },
-    { key: 'produtos',   label: 'Produtos',   icon: <Package size={14} />,     count: produtos.length },
-    { key: 'financeiro', label: 'Financeiro', icon: <DollarSign size={14} /> },
-    { key: 'clima',      label: 'Clima',      icon: <Cloud size={14} /> },
-    { key: 'equipe',     label: 'Equipe',     icon: <Users size={14} /> },
+    { key: 'talhoes',       label: 'Talhões',       icon: <Leaf size={14} />,        count: talhoes.length },
+    { key: 'mapa',          label: 'Mapa',          icon: <Map size={14} /> },
+    { key: 'produtos',      label: 'Produtos',      icon: <Package size={14} />,     count: produtos.length },
+    { key: 'financeiro',    label: 'Financeiro',    icon: <DollarSign size={14} /> },
+    { key: 'monitoramento', label: 'Monitoramento', icon: <Bug size={14} />,         count: monitoramentos.length },
+    { key: 'analytics',     label: 'Analytics',     icon: <BarChart3 size={14} /> },
+    { key: 'clima',         label: 'Clima',         icon: <Cloud size={14} /> },
+    { key: 'equipe',        label: 'Equipe',        icon: <Users size={14} /> },
   ]
+
+  // Monitoramento CRUD (farm-level: all talhões)
+  async function saveFazendaMonitoramento(data: Omit<MonitoramentoPraga, 'id' | 'createdAt' | 'updatedAt' | '_syncStatus'>) {
+    if (!user) return
+    const db = getDB()
+    const now = new Date().toISOString()
+    const { gerarId } = await import('@/lib/utils')
+    const record: MonitoramentoPraga = editingMonitoramento
+      ? { ...editingMonitoramento, ...data, updatedAt: now, _syncStatus: 'pending' }
+      : { id: gerarId(), ...data, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
+    await db.monitoramentos.put(record)
+    const { enqueueSync: eq, processSyncQueue: psq } = await import('@/lib/db/sync')
+    await eq('monitoramento', 'upsert', record as unknown as Record<string, unknown>)
+    psq()
+    setEditingMonitoramento(null)
+    await loadData()
+  }
+
+  async function deleteFazendaMonitoramento(monId: string) {
+    if (!confirm('Excluir este registro de monitoramento?')) return
+    const db = getDB()
+    await db.monitoramentos.delete(monId)
+    const { enqueueSync: eq, processSyncQueue: psq } = await import('@/lib/db/sync')
+    await eq('monitoramento', 'delete', { id: monId })
+    psq()
+    await loadData()
+  }
+
+  // Analytics KPIs
+  const { from: analyticsFrom, to: analyticsTo } = resolvePeriodDates('30d')
+  const kpiAplicacoes = aplicacoes.filter(a => a.data_aplicacao >= analyticsFrom && a.data_aplicacao <= analyticsTo).length
+  const kpiAtrasadas  = aplicacoes.filter(a => a.status === 'atrasado').length
+  const kpiCriticos   = talhoes.filter(t => {
+    const mons = monitoramentos.filter(m => m.talhao_id === t.id)
+    const worst = worstSeveridade(mons.map(m => m.severidade))
+    return worst === 'severo' || worst === 'critico'
+  }).length
 
   return (
     <div className="px-4 py-6 md:px-8 max-w-5xl mx-auto">
@@ -720,6 +778,82 @@ export default function FazendaDetailPage() {
       {tab === 'equipe' && (
         <div className="animate-enter animate-enter-3">
           <MembrosSection fazendaId={id} />
+        </div>
+      )}
+
+      {/* ── MONITORAMENTO ── */}
+      {tab === 'monitoramento' && (
+        <div className="animate-enter animate-enter-3">
+          <MonitoramentoAlertas registros={monitoramentos} talhoes={talhoes} />
+          {monitoramentos.length > 0 && <div className="mt-4" />}
+          <div className="flex items-center justify-between mb-4">
+            <p className="section-label">Visão por talhão</p>
+            <button
+              onClick={() => { setEditingMonitoramento(null); setMonitoramentoModal(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+              style={{ background: 'hsl(160 84% 22%)', color: '#fff' }}
+            >
+              <Plus size={11} /> Novo Registro
+            </button>
+          </div>
+          <MonitoramentoHeatmap registros={monitoramentos} talhoes={talhoes} />
+          <div className="mt-6">
+            <p className="section-label mb-3">Todos os registros</p>
+            {monitoramentos.length === 0 ? (
+              <div className="card p-10 text-center">
+                <Bug className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--fg-subtle)', opacity: 0.4 }} />
+                <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Nenhum monitoramento registrado nesta fazenda</p>
+              </div>
+            ) : (
+              <MonitoramentoTimeline
+                registros={monitoramentos}
+                cultura={talhoes[0]?.cultura as CulturaType ?? 'soja'}
+                onEdit={(r) => { setEditingMonitoramento(r); setMonitoramentoModal(true) }}
+                onDelete={deleteFazendaMonitoramento}
+              />
+            )}
+          </div>
+          {monitoramentoModal && talhoes.length > 0 && (
+            <MonitoramentoModal
+              open={monitoramentoModal}
+              onClose={() => { setMonitoramentoModal(false); setEditingMonitoramento(null) }}
+              onSave={saveFazendaMonitoramento}
+              editRecord={editingMonitoramento}
+              talhaoId={editingMonitoramento?.talhao_id ?? talhoes[0].id}
+              fazendaId={id}
+              usuarioId={user?.id ?? ''}
+              cultura={(editingMonitoramento ? talhoes.find(t => t.id === editingMonitoramento.talhao_id)?.cultura : talhoes[0].cultura) as CulturaType ?? 'soja'}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── ANALYTICS ── */}
+      {tab === 'analytics' && (
+        <div className="animate-enter animate-enter-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <KpiCard label="Aplicações (30d)" value={kpiAplicacoes} icon={FlaskConical} color="hsl(160 84% 22%)" />
+            <KpiCard label="Atrasadas" value={kpiAtrasadas} icon={Receipt} color="hsl(0 72% 51%)" />
+            <KpiCard label="Talhões críticos" value={kpiCriticos} icon={Bug} color="hsl(38 90% 50%)" />
+            <KpiCard label="Total de talhões" value={talhoes.length} icon={Leaf} color="hsl(210 100% 50%)" />
+          </div>
+          <div className="card p-4 mb-4">
+            <p className="section-label mb-3">Aplicações por semana</p>
+            <TrendLineChart aplicacoes={aplicacoes} from={analyticsFrom} to={analyticsTo} />
+          </div>
+          <div className="card p-4 mb-4">
+            <p className="section-label mb-3">Distribuição por tipo de produto</p>
+            <TypePieChart aplicacoes={aplicacoes} produtos={produtos} />
+          </div>
+          <div className="text-center mt-4">
+            <a
+              href={`/analytics?fazendaId=${id}`}
+              className="text-xs font-semibold"
+              style={{ color: 'hsl(160 84% 22%)' }}
+            >
+              Ver analytics completo →
+            </a>
+          </div>
         </div>
       )}
 

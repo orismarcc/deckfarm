@@ -5,6 +5,25 @@ export type AplicacaoStatus = 'dentro_do_prazo' | 'proximo' | 'hoje' | 'atrasado
 export type NotificacaoTipo = 'semana' | 'tres_dias' | 'amanha' | 'hoje' | 'atrasado'
 export type UserRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
 export type SafraStatus = 'planejada' | 'em_andamento' | 'finalizada'
+export type SeveridadeMonitoramento = 'nenhum' | 'leve' | 'moderado' | 'severo' | 'critico'
+export type TipoAgente = 'praga' | 'doenca'
+
+export interface MonitoramentoPraga {
+  id: string
+  talhao_id: string
+  fazenda_id: string
+  usuario_id: string
+  tipo: TipoAgente
+  agente: string
+  severidade: SeveridadeMonitoramento
+  data: string
+  area_afetada?: number
+  fotos?: string[]
+  observacoes?: string
+  createdAt: string
+  updatedAt: string
+  _syncStatus?: 'synced' | 'pending' | 'conflict'
+}
 export type MembroRole = 'admin' | 'agronomo' | 'tecnico' | 'operador'
 export type StatusSemeadura = 'nao_iniciada' | 'em_andamento' | 'finalizada'
 
@@ -260,7 +279,7 @@ export interface EstoqueMovimentacao {
 
 export interface SyncQueueItem {
   id: string
-  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao' | 'semeadura_etapa' | 'estoqueMovimentacao'
+  entity: 'fazenda' | 'talhao' | 'produto' | 'aplicacao' | 'semeadura_etapa' | 'estoqueMovimentacao' | 'monitoramento'
   action: 'upsert' | 'delete'
   data: Record<string, unknown>
   timestamp: string

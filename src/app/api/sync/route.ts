@@ -12,6 +12,7 @@ const TABLE_MAP: Record<string, string> = {
   aplicacao:             'aplicacoes',
   semeadura_etapa:       'semeadura_etapas',
   estoqueMovimentacao:   'estoque_movimentacoes',
+  monitoramento:         'monitoramentos',
 }
 
 const ALLOWED_ACTIONS = ['upsert', 'delete'] as const
@@ -54,6 +55,11 @@ const ALLOWED_FIELDS: Record<string, Set<string>> = {
   estoque_movimentacoes: new Set([
     'id', 'produto_id', 'fazenda_id', 'usuario_id', 'tipo',
     'quantidade', 'quantidade_anterior', 'quantidade_nova', 'motivo', 'data', 'createdAt',
+  ]),
+  monitoramentos: new Set([
+    'id', 'talhao_id', 'fazenda_id', 'usuario_id', 'tipo', 'agente',
+    'severidade', 'data', 'area_afetada', 'fotos', 'observacoes',
+    'createdAt', 'updatedAt',
   ]),
 }
 
@@ -113,7 +119,7 @@ export async function POST(request: NextRequest) {
     const payload = pickAllowedFields(item.data ?? {}, table)
 
     // Force usuario_id to the authenticated user for owned tables — client cannot override
-    if (table === 'fazendas' || table === 'aplicacoes' || table === 'semeadura_etapas' || table === 'estoque_movimentacoes') {
+    if (table === 'fazendas' || table === 'aplicacoes' || table === 'semeadura_etapas' || table === 'estoque_movimentacoes' || table === 'monitoramentos') {
       payload.usuario_id = user.id
     }
 

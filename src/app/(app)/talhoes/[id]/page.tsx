@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { useAppStore } from '@/store/app'
 import { getDB } from '@/lib/db'
@@ -15,16 +15,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { AplicacaoCard } from '@/components/aplicacoes/aplicacao-card'
 import { FenologiaCard } from '@/components/talhoes/fenologia-card'
 import { culturaLabel, culturaIcon, gerarId } from '@/lib/utils'
-import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao, SemeaduraEtapa } from '@/types'
+import type { Talhao, Fazenda, Produto, Aplicacao, Pluviometro, RegistroChuva, Anotacao, StatusSemeadura, Recomendacao, RecomendacaoAplicacao, SemeaduraEtapa, MonitoramentoPraga, CulturaType } from '@/types'
 import { PhotoPicker } from '@/components/ui/photo-picker'
 import {
   ArrowLeft, Plus, FlaskConical, AlertTriangle, Calendar,
   Sprout, CheckCircle2, Clock3, ChevronDown, ChevronUp, Pencil, RotateCcw,
-  CloudRain, StickyNote, Droplets, Layers, Trash2,
+  CloudRain, StickyNote, Droplets, Layers, Trash2, Bug,
 } from 'lucide-react'
 import Link from 'next/link'
 import { addDays, differenceInDays, parseISO, format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { MonitoramentoTimeline } from '@/components/monitoramento/monitoramento-timeline'
+import { MonitoramentoModal } from '@/components/monitoramento/monitoramento-modal'
+import { TendenciaAlerta } from '@/components/monitoramento/monitoramento-alertas'
+import { SeveridadeDot, worstSeveridade } from '@/components/ui/severidade-badge'
 
 // ── Crop phases (approximate %) ─────────────────────────────────────────────
 function getCropPhase(pct: number): { label: string; color: string } {
@@ -119,13 +123,24 @@ async function gerarNotificacoesSemeadura(talhao: Talhao, usuario_id: string): P
   }
 }
 
+type TalhaoTab = 'info' | 'monitoramento'
+
 export default function TalhaoPage() {
   const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const { user } = useAuthStore()
   const [talhao, setTalhao] = useState<Talhao | null>(null)
   const [fazenda, setFazenda] = useState<Fazenda | null>(null)
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([])
+
+  // ── Monitoramento state ───────────────────────────────────────────────────
+  const [monitoramentos, setMonitoramentos] = useState<MonitoramentoPraga[]>([])
+  const [monitoramentoModal, setMonitoramentoModal] = useState(false)
+  const [editingMonitoramento, setEditingMonitoramento] = useState<MonitoramentoPraga | null>(null)
+  const [activeTab, setActiveTab] = useState<TalhaoTab>(
+    () => (searchParams.get('tab') === 'monitoramento' ? 'monitoramento' : 'info')
+  )
 
   // Semeadura etapas
   const [etapas, setEtapas] = useState<SemeaduraEtapa[]>([])
@@ -239,6 +254,13 @@ export default function TalhaoPage() {
       .reverse()
       .sortBy('data')
     setAnotacoes(ants)
+
+    // Load monitoramentos
+    const mons = await db.monitoramentos
+      .where('talhao_id').equals(id)
+      .reverse()
+      .sortBy('data')
+    setMonitoramentos(mons)
   }, [id])
 
   useEffect(() => { loadData() }, [loadData])
@@ -685,6 +707,32 @@ export default function TalhaoPage() {
 
   const semeaduraColors = STATUS_SEMEADURA_COLORS[statusSemeaduraComputado]
 
+  // ── Monitoramento CRUD ────────────────────────────────────────────────────
+  async function saveMonitoramento(data: Omit<MonitoramentoPraga, 'id' | 'createdAt' | 'updatedAt' | '_syncStatus'>) {
+    if (!user) return
+    const db = getDB()
+    const now = new Date().toISOString()
+    const record: MonitoramentoPraga = editingMonitoramento
+      ? { ...editingMonitoramento, ...data, updatedAt: now, _syncStatus: 'pending' }
+      : { id: gerarId(), ...data, createdAt: now, updatedAt: now, _syncStatus: 'pending' }
+    await db.monitoramentos.put(record)
+    await enqueueSync('monitoramento', 'upsert', record as unknown as Record<string, unknown>)
+    processSyncQueue()
+    setEditingMonitoramento(null)
+    await loadData()
+  }
+
+  async function deleteMonitoramento(monId: string) {
+    if (!confirm('Excluir este registro de monitoramento?')) return
+    const db = getDB()
+    await db.monitoramentos.delete(monId)
+    await enqueueSync('monitoramento', 'delete', { id: monId })
+    processSyncQueue()
+    await loadData()
+  }
+
+  const worstSev = worstSeveridade(monitoramentos.map(m => m.severidade))
+
   return (
     <div className="px-4 py-6 md:px-8 max-w-4xl mx-auto">
       {/* Header */}
@@ -705,6 +753,7 @@ export default function TalhaoPage() {
               <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--fg)' }}>
                 {talhao.nome}
               </h1>
+              {monitoramentos.length > 0 && <SeveridadeDot severidade={worstSev} />}
             </div>
             <p className="text-sm ml-8" style={{ color: 'var(--fg-muted)' }}>
               {fazenda?.nome} · {culturaLabel(talhao.cultura)} · {talhao.area} ha
@@ -717,6 +766,90 @@ export default function TalhaoPage() {
           </Button>
         )}
       </div>
+
+      {/* ── Tabs ── */}
+      <div className="animate-enter animate-enter-2 flex gap-1 p-1 rounded-xl mb-6 overflow-x-auto" style={{ background: 'var(--bg-dark)' }}>
+        {([
+          { key: 'info',         label: 'Visão Geral', icon: <Sprout size={14} /> },
+          { key: 'monitoramento', label: 'Monitoramento', icon: <Bug size={14} />, count: monitoramentos.length },
+        ] as { key: TalhaoTab; label: string; icon: React.ReactNode; count?: number }[]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition whitespace-nowrap"
+            style={{
+              background: activeTab === t.key ? 'var(--bg-card)' : 'transparent',
+              color:      activeTab === t.key ? 'var(--fg)' : 'var(--fg-muted)',
+              boxShadow:  activeTab === t.key ? 'var(--shadow-xs)' : 'none',
+            }}
+          >
+            {t.icon}
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                style={{ background: activeTab === t.key ? 'hsl(160 84% 22% / 0.12)' : 'transparent', color: activeTab === t.key ? 'hsl(160 84% 22%)' : 'inherit' }}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════════════════════════ MONITORAMENTO TAB ══════════════════ */}
+      {activeTab === 'monitoramento' && (
+        <div className="animate-enter animate-enter-3">
+          {/* Tendência alert */}
+          {monitoramentos.length > 0 && (
+            <div className="mb-4">
+              <TendenciaAlerta registros={monitoramentos} cultura={talhao.cultura as CulturaType} />
+            </div>
+          )}
+          {/* Actions */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="section-label">Registros de Monitoramento</p>
+            <Button
+              size="sm"
+              onClick={() => { setEditingMonitoramento(null); setMonitoramentoModal(true) }}
+              className="gap-1"
+            >
+              <Plus className="w-4 h-4" /> Novo Registro
+            </Button>
+          </div>
+          {monitoramentos.length === 0 ? (
+            <div className="card p-10 text-center">
+              <Bug className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--fg-subtle)', opacity: 0.4 }} />
+              <p className="text-sm mb-3" style={{ color: 'var(--fg-muted)' }}>Nenhum monitoramento registrado</p>
+              <button
+                onClick={() => { setEditingMonitoramento(null); setMonitoramentoModal(true) }}
+                className="text-xs font-semibold"
+                style={{ color: 'hsl(160 84% 22%)' }}
+              >
+                + Registrar primeiro monitoramento
+              </button>
+            </div>
+          ) : (
+            <MonitoramentoTimeline
+              registros={monitoramentos}
+              cultura={talhao.cultura as CulturaType}
+              onEdit={(r) => { setEditingMonitoramento(r); setMonitoramentoModal(true) }}
+              onDelete={deleteMonitoramento}
+            />
+          )}
+          <MonitoramentoModal
+            open={monitoramentoModal}
+            onClose={() => { setMonitoramentoModal(false); setEditingMonitoramento(null) }}
+            onSave={saveMonitoramento}
+            editRecord={editingMonitoramento}
+            talhaoId={talhao.id}
+            fazendaId={talhao.fazenda_id}
+            usuarioId={user?.id ?? ''}
+            cultura={talhao.cultura as CulturaType}
+          />
+        </div>
+      )}
+
+      {/* ══════════════════════════════ INFO TAB ═══════════════════════════ */}
+      {activeTab === 'info' && <>
 
       {/* ── Plantio Card ── */}
       <div className="animate-enter animate-enter-2 card p-5 mb-5">
@@ -1575,6 +1708,8 @@ export default function TalhaoPage() {
           />
         </div>
       )}
+
+      </> /* end activeTab === 'info' */}
 
       {/* ── Modal Plantio ── */}
       <Modal
